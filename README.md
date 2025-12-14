@@ -1,9 +1,5 @@
 ## powereg
 
-### notes
-- https://github.com/AdnanHodzic/auto-cpufreq
-- https://gitlab.freedesktop.org/upower/power-profiles-daemon
-
 #### possible optimization vectors
 - amd_pstate
     - `/sys/devices/system/cpu/amd_pstate/status`
