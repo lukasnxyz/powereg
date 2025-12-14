@@ -1,7 +1,4 @@
-use crate::{
-    fds::SystemFds,
-    system_state::ScalingGoverner,
-};
+use crate::{fds::SystemFds, system_state::ScalingGoverner};
 use std::{fmt, io, os::unix::io::AsRawFd};
 
 pub enum Event {

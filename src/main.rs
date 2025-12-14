@@ -2,14 +2,11 @@ use clap::Parser;
 use events::poll_events;
 use std::{io, os::unix::io::AsRawFd};
 use udev::MonitorBuilder;
-
 use crate::{events::handle_event, fds::SystemFds, system_state::SystemState};
 
 mod events;
 mod fds;
 mod system_state;
-
-const AC_ONLINE_PATH: &str = "/sys/class/power_supply/AC/online";
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -37,17 +34,15 @@ fn main() -> io::Result<()> {
 
     let socket = MonitorBuilder::new()?
         .match_subsystem("power_supply")?
-        //.match_subsystem("backlight")?
         .listen()?;
 
     let fd = socket.as_raw_fd();
     println!("udev monitor started successfully on FD: {}", fd);
 
     let mut system_fds = SystemFds::init(system_state.num_cpu_cores)?;
-
     loop {
         let event = poll_events(&socket);
-        handle_event(&event, &mut system_fds);
+        handle_event(&event, &mut system_fds)?;
     }
 }
 

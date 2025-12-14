@@ -36,11 +36,27 @@ impl PersFd {
     }
 }
 
+/*
+/sys/devices/system/cpu/cpu* /cpufreq/scaling_governor
+/sys/devices/system/cpu/cpu* /cpufreq/scaling_min_freq
+/sys/devices/system/cpu/cpu* /cpufreq/scaling_max_freq
+/sys/devices/system/cpu/cpu* /cpufreq/energy_performance_preference
+/sys/devices/system/cpu/intel_pstate/no_turbo
+/sys/devices/system/cpu/cpufreq/boost
+/sys/firmware/acpi/platform_profile
+*/
+
 pub struct SystemFds {
-    cpu_core_count: usize,
+    cpu_core_count: usize, // TODO: go this with generic N
 
     scaling_governer: Vec<PersFd>,
     avg_cpu_freq: Vec<PersFd>,
+
+    // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
+    // TODO: /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference (power, balance_power, balance_performance, performance)
+    //      intel_pstate and amd_pstate
+    // TODO: /sys/firmware/acpi/platform_profile (low-power, balanced, performance)
+    // TODO: min/max frequencies
 }
 
 impl SystemFds {
@@ -48,8 +64,10 @@ impl SystemFds {
         let mut scaling_governer: Vec<PersFd> = vec![];
         let mut avg_cpu_freq: Vec<PersFd> = vec![];
         for i in 0..n {
-            let scaling_gov_path = format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", i);
-            let avg_cpu_freq_path = format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", i);
+            let scaling_gov_path =
+                format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", i);
+            let avg_cpu_freq_path =
+                format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", i);
 
             scaling_governer.push(PersFd::new(&scaling_gov_path)?);
             avg_cpu_freq.push(PersFd::new(&avg_cpu_freq_path)?);
@@ -100,8 +118,7 @@ impl SystemFds {
 
         for fd in &mut self.avg_cpu_freq {
             let val = &fd.read_value()?;
-            total += val.parse::<usize>()
-                .expect("failed to parse integer");
+            total += val.parse::<usize>().expect("failed to parse integer");
         }
 
         Ok(total / self.cpu_core_count)
