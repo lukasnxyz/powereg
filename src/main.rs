@@ -1,8 +1,8 @@
+use crate::{events::handle_event, fds::SystemFds, system_state::SystemState};
 use clap::Parser;
 use events::poll_events;
 use std::{io, os::unix::io::AsRawFd};
 use udev::MonitorBuilder;
-use crate::{events::handle_event, fds::SystemFds, system_state::SystemState};
 
 mod events;
 mod fds;

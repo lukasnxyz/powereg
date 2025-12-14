@@ -51,7 +51,6 @@ pub struct SystemFds {
 
     scaling_governer: Vec<PersFd>,
     avg_cpu_freq: Vec<PersFd>,
-
     // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
     // TODO: /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference (power, balance_power, balance_performance, performance)
     //      intel_pstate and amd_pstate
