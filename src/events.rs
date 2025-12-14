@@ -1,3 +1,7 @@
+use crate::{
+    fds::SystemFds,
+    system_state::ScalingGoverner,
+};
 use std::{fmt, io, os::unix::io::AsRawFd};
 
 pub enum Event {
@@ -5,10 +9,11 @@ pub enum Event {
     PowerUnPlug,
     Unknown,
     Error(String),
+    //IncCPULoad,
+    //DropCPULoad,
+
     //LowBattery,
     //FullBattery,
-    //DisplayOn,
-    //DisplayOff,
 }
 
 impl fmt::Display for Event {
@@ -57,15 +62,23 @@ pub fn poll_events(socket: &udev::MonitorSocket) -> Event {
     Event::Unknown
 }
 
-pub fn handle_event(event: &Event) {
+pub fn handle_event(event: &Event, system_fds: &mut SystemFds) -> io::Result<()> {
     match event {
         Event::PowerInPlug => {
             println!("event: {}", event);
+            system_fds.set_scaling_governer(ScalingGoverner::Performance)?;
         }
         Event::PowerUnPlug => {
             println!("event: {}", event);
+            system_fds.set_scaling_governer(ScalingGoverner::Powersave)?;
         }
         Event::Unknown => {}
         Event::Error(_) => {}
     }
+
+    let scaling_gov = system_fds.read_scaling_governer();
+    println!("\tscaling governer: {:?}", scaling_gov);
+    println!("\tavg cpu freq: {}", system_fds.read_avg_cpu_freq()?);
+
+    Ok(())
 }

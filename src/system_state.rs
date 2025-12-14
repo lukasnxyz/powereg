@@ -1,4 +1,44 @@
-use std::{fs, path::Path, fmt};
+use std::{fmt, fs, io, path::Path};
+
+pub const POWERSAVE: &str = "powersave";
+pub const PERFORMANCE: &str = "performance";
+pub const BALANCE_POWER: &str = "balance_power";
+
+#[derive(PartialEq, Debug)]
+pub enum ScalingGoverner {
+    Powersave,
+    Performance,
+    Unknown,
+}
+
+impl ScalingGoverner {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            PERFORMANCE => Self::Performance,
+            POWERSAVE => Self::Powersave,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug)]
+pub enum EPP {
+    Powersave,
+    Performance,
+    BalancePower,
+    Unknown,
+}
+
+impl EPP {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            PERFORMANCE => Self::Performance,
+            POWERSAVE => Self::Powersave,
+            BALANCE_POWER => Self::BalancePower,
+            _ => Self::Unknown,
+        }
+    }
+}
 
 #[derive(Debug)]
 enum CpuType {
@@ -14,19 +54,23 @@ enum ACPIType {
     Unknown,
 }
 
-enum ScalingGoverner {
-    PowerSave,
-    Performance,
-}
-
-
 pub struct SystemState {
     pub linux: bool,
     pub cpu_type: CpuType,
     pub acpi_type: ACPIType,
-    pub scaling_governer: ScalingGoverner,
-    pub scaling_min_freq: usize,
-    pub scaling_max_freq: usize,
+    pub num_cpu_cores: usize,
+    //pub scaling_governer: ScalingGoverner,
+
+    // /sys/devices/system/cpu/cpu * /cpufreq/scaling_min_freq and scaling_max_freq
+    //pub scaling_min_freq: usize,
+    //pub scaling_max_freq: usize,
+
+    // amd pstate (/sys/devices/system/cpu/amd_pstate/status)
+    // enable/disable /sys/devices/system/cpu/cpufreq/boost
+    //  basically when big workload, enable
+    //cpu_freq_boost: bool,
+
+    // cpu temperatures (all and average)
 }
 
 impl fmt::Display for SystemState {
@@ -34,9 +78,7 @@ impl fmt::Display for SystemState {
         write!(
             f,
             "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}",
-            self.linux,
-            self.cpu_type,
-            self.acpi_type,
+            self.linux, self.cpu_type, self.acpi_type,
         )
     }
 }
@@ -47,6 +89,7 @@ impl SystemState {
             linux: Self::detect_linux(),
             cpu_type: Self::detect_cpu_type(),
             acpi_type: Self::detect_acpi_type(),
+            num_cpu_cores: Self::num_cpu_cores().unwrap(),
         }
     }
 
@@ -68,11 +111,12 @@ impl SystemState {
         let has_sys = Path::new("/sys").exists();
         let has_etc = Path::new("/etc").exists();
 
-        let has_os_release = Path::new("/etc/os-release").exists()
-            || Path::new("/usr/lib/os-release").exists();
+        let has_os_release =
+            Path::new("/etc/os-release").exists() || Path::new("/usr/lib/os-release").exists();
 
-        compile_time || (runtime_uname && has_proc && has_sys) ||
-            (has_proc && has_sys && has_etc && has_os_release)
+        compile_time
+            || (runtime_uname && has_proc && has_sys)
+            || (has_proc && has_sys && has_etc && has_os_release)
     }
 
     fn detect_cpu_type() -> CpuType {
@@ -132,6 +176,28 @@ impl SystemState {
                 _ => None,
             }
         }
+    }
+
+    fn num_cpu_cores() -> io::Result<usize> {
+        let cpu_dir = "/sys/devices/system/cpu/";
+        let mut count = 0;
+
+        for entry in fs::read_dir(cpu_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with("cpu") && name != "cpufreq" {
+                        // Check if the remaining part of the name is a number
+                        if name[3..].parse::<u32>().is_ok() {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(count)
     }
 
     fn detect_acpi_type() -> ACPIType {
