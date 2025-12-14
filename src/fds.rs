@@ -48,14 +48,15 @@ impl PersFd {
 
 pub struct SystemFds {
     cpu_core_count: usize, // TODO: go this with generic N
-
     scaling_governer: Vec<PersFd>,
+    max_cpu_freq: Vec<PersFd>,
+    min_cpu_freq: Vec<PersFd>,
     cpu_freq: Vec<PersFd>,
+    cpu_temp: PersFd,
     // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
     // TODO: /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference (power, balance_power, balance_performance, performance)
     //      intel_pstate and amd_pstate
     // TODO: /sys/firmware/acpi/platform_profile (low-power, balanced, performance)
-    // TODO: min/max frequencies
 }
 
 impl SystemFds {
@@ -66,33 +67,42 @@ impl SystemFds {
 
         let mut scaling_governer: Vec<PersFd> = vec![];
         let mut cpu_freq: Vec<PersFd> = vec![];
+        let mut max_cpu_freq: Vec<PersFd> = vec![];
+        let mut min_cpu_freq: Vec<PersFd> = vec![];
         for i in 0..n {
             let scaling_gov_path =
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", i);
             let cpu_freq_path =
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", i);
+            let max_cpu_freq_path = format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_min_freq", i);
+            let min_cpu_freq_path = format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", i);
 
             scaling_governer.push(PersFd::new(&scaling_gov_path, true)?);
             cpu_freq.push(PersFd::new(&cpu_freq_path, false)?);
+            max_cpu_freq.push(PersFd::new(&max_cpu_freq_path, true)?);
+            min_cpu_freq.push(PersFd::new(&min_cpu_freq_path, true)?);
         }
 
         Ok(Self {
             cpu_core_count: n,
             scaling_governer,
             cpu_freq,
+            max_cpu_freq,
+            min_cpu_freq,
+            cpu_temp: PersFd::new("/sys/class/thermal/thermal_zone0/temp", false)?
         })
     }
 
     pub fn read_scaling_governer(&mut self) -> io::Result<ScalingGoverner> {
-        let pref = ScalingGoverner::from_string(&self.scaling_governer[0].read_value()?);
-        assert_ne!(pref, ScalingGoverner::Unknown);
+        let gov = ScalingGoverner::from_string(&self.scaling_governer[0].read_value()?);
+        assert_ne!(gov, ScalingGoverner::Unknown);
 
         for fd in &mut self.scaling_governer[1..] {
             let val = ScalingGoverner::from_string(&fd.read_value()?);
-            assert_eq!(pref, val);
+            assert_eq!(gov, val);
         }
 
-        Ok(pref)
+        Ok(gov)
     }
 
     pub fn set_scaling_governer(&mut self, scaling_governer: ScalingGoverner) -> io::Result<()> {
@@ -102,7 +112,7 @@ impl SystemFds {
             _ => {
                 return Err(io::Error::new(
                     ErrorKind::InvalidInput,
-                    "Unsupported performance preference value",
+                    "unsupported performance preference value",
                 ))
             }
         };
@@ -125,5 +135,42 @@ impl SystemFds {
         }
 
         Ok(total / self.cpu_core_count)
+    }
+
+    pub fn read_min_cpu_freq(&mut self) -> io::Result<usize> {
+        let prev = &self.min_cpu_freq[0].read_value()?.parse::<usize>()
+            .expect("failed to parse usize");
+
+        for fd in &mut self.min_cpu_freq[1..] {
+            let val = &fd.read_value()?.clone().parse::<usize>()
+                .expect("failed to parse usize");
+            assert_eq!(prev, val);
+        }
+
+        Ok(*prev)
+    }
+
+    //pub fn set_min_cpu_freq(&mut self) -> io::Result<usize> {}
+
+    pub fn read_max_cpu_freq(&mut self) -> io::Result<usize> {
+        let prev = &self.max_cpu_freq[0].read_value()?.parse::<usize>()
+            .expect("failed to parse usize");
+
+        for fd in &mut self.max_cpu_freq[1..] {
+            let val = &fd.read_value()?.clone().parse::<usize>()
+                .expect("failed to parse usize");
+            assert_eq!(prev, val);
+        }
+
+        Ok(*prev)
+    }
+
+    //pub fn set_max_cpu_freq(&mut self) -> io::Result<usize> {}
+
+    /// celcius
+    pub fn read_cpu_temp(&mut self) -> io::Result<usize> {
+        let temp = &self.cpu_temp.read_value()?.parse::<usize>()
+            .expect("failed to parse usize") / 1000;
+        Ok(temp)
     }
 }
