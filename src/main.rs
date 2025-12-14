@@ -1,6 +1,151 @@
-fn main() {
-    println!("Hello, world!");
+use clap::Parser;
+use std::{io, os::unix::io::AsRawFd};
+use udev::MonitorBuilder;
+use events::{poll_events};
+
+use crate::{events::handle_event, system_state::SystemState};
+
+mod events;
+mod system_state;
+
+const AC_ONLINE_PATH: &str = "/sys/class/power_supply/AC/online";
+
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Args {
+    #[arg(long)]
+    daemon: bool,
 }
+
+fn main() -> io::Result<()> {
+    let system_state = SystemState::init();
+    if !system_state.linux {
+        println!("need to be running on linux!");
+        return Ok(());
+    }
+    println!("{}", system_state);
+
+    let args = Args::parse();
+
+    if args.daemon {
+        println!("daemon mode implemented");
+        return Ok(());
+    } else {
+        println!("running non-daemon mode");
+    }
+
+    let socket = MonitorBuilder::new()?
+        .match_subsystem("power_supply")?
+        //.match_subsystem("backlight")?
+        .listen()?;
+
+    let fd = socket.as_raw_fd();
+    println!("udev monitor started successfully on FD: {}", fd);
+
+    loop {
+        let event = poll_events(&socket);
+        handle_event(&event);
+    }
+}
+
+/*
+fn read_ac_status() -> io::Result<String> {
+    let mut file = File::open(AC_ONLINE_PATH)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content.trim().to_string())
+}
+
+fn check_initial_ac_status() -> io::Result<bool> {
+    use std::fs;
+    use std::path::Path;
+
+    let power_supply_path = Path::new("/sys/class/power_supply");
+
+    if let Ok(entries) = fs::read_dir(power_supply_path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+
+            if name_str.starts_with("AC") || name_str.starts_with("ACAD") {
+                let online_path = entry.path().join("online");
+                if let Ok(content) = fs::read_to_string(online_path) {
+                    return Ok(content.trim() == "1");
+                }
+            }
+        }
+    }
+
+    Ok(false)
+}
+*/
+
+/*
+POSSIBLE OPTIMIZATION VECTORS
+    - amd_pstate
+        - /sys/devices/system/cpu/amd_pstate/status
+        - /sys/devices/system/cpu/cpu * /cpufreq/scaling_min_freq and scaling_max_freq
+        - /sys/devices/system/cpu/cpu * /cpufreq/energy_performance_preference
+    - /sys/devices/system/cpu/cpu * /cpufreq/scaling_governor
+    - enable/disable /sys/devices/system/cpu/cpufreq/boost
+    - battery thresholds on thinkpad
+*/
+
+/*
+PERSISTENT FILE DESCRIPTORS IN RUST
+
+use std::fs::{self, File, OpenOptions};
+use std::os::unix::io::AsRawFd;
+use std::io::{self, Write, Seek};
+
+/// A persistent wrapper around a sysfs file, keeping the descriptor open.
+pub struct SysFsSetting {
+    /// The actual file handle. This is kept open for the lifetime of the struct.
+    file: File,
+    /// The path to the sysfs file (for debugging/identification)
+    path: String,
+}
+
+impl SysFsSetting {
+    /// Creates a new persistent setting by opening the specified file path.
+    /// It requires CAP_SYS_ADMIN (root) permissions to write to most sysfs files.
+    pub fn new(path: &str) -> io::Result<Self> {
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)?;
+
+        // Optional: Get the raw FD for low-level diagnostics, if needed
+        let fd = file.as_raw_fd();
+        println!("Opened sysfs file: {} with FD: {}", path, fd);
+
+        Ok(SysFsSetting {
+            file,
+            path: path.to_string(),
+        })
+    }
+
+    /// Writes a new value to the sysfs file efficiently.
+    pub fn set_value(&mut self, value: &str) -> io::Result<()> {
+        // 1. Seek to the start (required because previous writes move the cursor)
+        self.file.seek(io::SeekFrom::Start(0))?;
+
+        // 2. Write the new value (as bytes)
+        self.file.write_all(value.as_bytes())?;
+
+        // 3. Truncate (crucial for sysfs!)
+        // If the new value is shorter than the old one (e.g., 'powersave' (10 chars)
+        // overwriting 'performance' (11 chars)), the end of the old value will remain.
+        // Truncating ensures the file size is correct.
+        self.file.set_len(value.len() as u64)?;
+
+        // Optional: Sync the file data to disk (can be omitted for performance)
+        // self.file.sync_data()?;
+
+        Ok(())
+    }
+}
+*/
 
 /*
 - read off bat (charging, nothing, or discharging)
