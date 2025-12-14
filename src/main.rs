@@ -39,6 +39,8 @@ fn main() -> io::Result<()> {
     let fd = socket.as_raw_fd();
     println!("udev monitor started successfully on FD: {}", fd);
 
+    // TODO: need to call either set performance or powersave upon startup as well
+
     let mut system_fds = SystemFds::init(system_state.num_cpu_cores)?;
     loop {
         let event = poll_events(&socket);

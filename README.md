@@ -8,3 +8,6 @@
 - `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`
 - enable/disable `/sys/devices/system/cpu/cpufreq/boost`
 - battery thresholds on thinkpad
+
+#### Credits
+Inspired by [auto-cpufreq](https://github.com/AdnanHodzic/auto-cpufreq).

@@ -12,8 +12,8 @@ pub struct PersFd {
 impl PersFd {
     /// Creates a new persistent setting by opening the specified file path.
     /// It requires CAP_SYS_ADMIN (root) permissions to write to most sysfs files.
-    pub fn new(path: &str) -> io::Result<Self> {
-        let file = OpenOptions::new().read(true).write(true).open(path)?;
+    pub fn new(path: &str, write: bool) -> io::Result<Self> {
+        let file = OpenOptions::new().read(true).write(write).open(path)?;
         Ok(PersFd {
             file,
             path: path.to_string(),
@@ -50,7 +50,7 @@ pub struct SystemFds {
     cpu_core_count: usize, // TODO: go this with generic N
 
     scaling_governer: Vec<PersFd>,
-    avg_cpu_freq: Vec<PersFd>,
+    cpu_freq: Vec<PersFd>,
     // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
     // TODO: /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference (power, balance_power, balance_performance, performance)
     //      intel_pstate and amd_pstate
@@ -60,22 +60,26 @@ pub struct SystemFds {
 
 impl SystemFds {
     pub fn init(n: usize) -> io::Result<Self> {
+        let mut available_scaling_governers =
+            PersFd::new("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false)?;
+        assert_eq!("performance powersave", available_scaling_governers.read_value()?);
+
         let mut scaling_governer: Vec<PersFd> = vec![];
-        let mut avg_cpu_freq: Vec<PersFd> = vec![];
+        let mut cpu_freq: Vec<PersFd> = vec![];
         for i in 0..n {
             let scaling_gov_path =
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", i);
-            let avg_cpu_freq_path =
+            let cpu_freq_path =
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", i);
 
-            scaling_governer.push(PersFd::new(&scaling_gov_path)?);
-            avg_cpu_freq.push(PersFd::new(&avg_cpu_freq_path)?);
+            scaling_governer.push(PersFd::new(&scaling_gov_path, true)?);
+            cpu_freq.push(PersFd::new(&cpu_freq_path, false)?);
         }
 
         Ok(Self {
             cpu_core_count: n,
             scaling_governer,
-            avg_cpu_freq,
+            cpu_freq,
         })
     }
 
@@ -115,8 +119,8 @@ impl SystemFds {
     pub fn read_avg_cpu_freq(&mut self) -> io::Result<usize> {
         let mut total = 0;
 
-        for fd in &mut self.avg_cpu_freq {
-            let val = &fd.read_value()?;
+        for fd in &mut self.cpu_freq {
+            let val: String = fd.read_value()?;
             total += val.parse::<usize>().expect("failed to parse integer");
         }
 
