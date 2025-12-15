@@ -1,8 +1,12 @@
+use crate::fds::SystemFds;
 use std::{fmt, fs, io, path::Path};
 
 pub const POWERSAVE: &str = "powersave";
 pub const PERFORMANCE: &str = "performance";
 pub const BALANCE_POWER: &str = "balance_power";
+pub const CHARGING: &str = "Charging";
+pub const DISCHARGING: &str = "Discharging";
+pub const NOTCHARGING: &str = "Not charging";
 
 #[derive(PartialEq, Debug)]
 pub enum ScalingGoverner {
@@ -22,6 +26,26 @@ impl ScalingGoverner {
 }
 
 #[derive(PartialEq, Debug)]
+pub enum ChargingStatus {
+    Charging,
+    DisCharging,
+    NotCharging,
+    Unknown,
+}
+
+impl ChargingStatus {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            CHARGING => Self::Charging,
+            DISCHARGING => Self::DisCharging,
+            NOTCHARGING => Self::NotCharging,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/*
+#[derive(PartialEq, Debug)]
 pub enum EPP {
     Powersave,
     Performance,
@@ -39,6 +63,7 @@ impl EPP {
         }
     }
 }
+*/
 
 #[derive(Debug)]
 enum CpuType {
@@ -77,8 +102,8 @@ impl fmt::Display for SystemState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}",
-            self.linux, self.cpu_type, self.acpi_type,
+            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tcpu core cout: {}",
+            self.linux, self.cpu_type, self.acpi_type, self.num_cpu_cores,
         )
     }
 }
@@ -203,4 +228,17 @@ impl SystemState {
     fn detect_acpi_type() -> ACPIType {
         return ACPIType::ThinkPad;
     }
+}
+
+pub fn set_powersave_mode(system_fds: &SystemFds) -> io::Result<()> {
+    system_fds.set_scaling_governer(ScalingGoverner::Powersave)
+}
+
+pub fn set_performance_mode(system_fds: &SystemFds) -> io::Result<()> {
+    // TODO: check
+    //      cpu temp
+    //      low battery
+    //      check load average
+    //      check cpu freq
+    system_fds.set_scaling_governer(ScalingGoverner::Performance)
 }
