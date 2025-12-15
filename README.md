@@ -1,13 +1,12 @@
 ## powereg
 
-#### possible optimization vectors
-- amd_pstate
-    - `/sys/devices/system/cpu/amd_pstate/status`
-    - `/sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq and scaling_max_freq`
-    - `/sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference`
-- `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`
-- enable/disable `/sys/devices/system/cpu/cpufreq/boost`
-- battery thresholds on thinkpad
+### Getting started
+```
+cargo build --release
+sudo cp target/release/powereg /usr/local/bin/
+sudo powereg --install
+```
 
 #### Credits
-Inspired by [auto-cpufreq](https://github.com/AdnanHodzic/auto-cpufreq).
+Heavily inspired by [auto-cpufreq](https://github.com/AdnanHodzic/auto-cpufreq), I just wanted
+a power management tool in rust bc rust is cool

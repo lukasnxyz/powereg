@@ -36,10 +36,6 @@ impl PersFd {
     }
 }
 
-// SystemFdErr
-//  io::Error
-//  parsing error
-
 /*
 /sys/devices/system/cpu/cpu* /cpufreq/scaling_governor
 /sys/devices/system/cpu/cpu* /cpufreq/scaling_min_freq
@@ -65,6 +61,7 @@ pub struct SystemFds {
     // TODO: /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference (power, balance_power, balance_performance, performance)
     //      intel_pstate and amd_pstate
     // TODO: /sys/firmware/acpi/platform_profile (low-power, balanced, performance)
+
     // battery thresholds on thinkpad
 }
 
