@@ -1,22 +1,8 @@
-use clap::Parser;
-use std::{io, os::unix::io::AsRawFd, process::Command};
+use std::{io, process::Command};
 
 const SERVICE_NAME: &str = "powereg";
 const SERVICE_PATH: &str = "/etc/systemd/system/powereg.service";
 const BINARY_PATH: &str = "/usr/local/bin/powereg";
-
-#[derive(Parser, Debug)]
-#[command(version, about)]
-pub struct Args {
-    #[arg(long, help = "Install powereg as a daemon on your system")]
-    pub install: bool,
-    #[arg(long, help = "Uninstall powereg on your system")]
-    pub uninstall: bool,
-    #[arg(long, help = "Run in live mode")]
-    pub live: bool,
-    //#[arg(long, help = "Monitor running daemon and system stats")]
-    //pub monitor: bool,
-}
 
 pub fn check_running_daemon_mode() -> io::Result<bool> {
     let output = std::process::Command::new("systemctl")

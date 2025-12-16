@@ -2,11 +2,14 @@ use crate::fds::SystemFds;
 use std::{fmt, fs, io, path::Path};
 
 pub const POWERSAVE: &str = "powersave";
-pub const PERFORMANCE: &str = "performance";
+pub const POWER: &str = "power";
 pub const BALANCE_POWER: &str = "balance_power";
+pub const PERFORMANCE: &str = "performance";
+pub const BALANCE_PERFORMANCE: &str = "balance_performance";
 pub const CHARGING: &str = "Charging";
 pub const DISCHARGING: &str = "Discharging";
 pub const NOTCHARGING: &str = "Not charging";
+pub const DEFAULT: &str = "default";
 
 #[derive(PartialEq, Debug)]
 pub enum ScalingGoverner {
@@ -21,6 +24,29 @@ impl ScalingGoverner {
             PERFORMANCE => Self::Performance,
             POWERSAVE => Self::Powersave,
             _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug)]
+pub enum EPP {
+    EDefault,
+    Performance,
+    BalancePerformance,
+    BalancePower,
+    Power,
+    Unknown,
+}
+
+impl EPP {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            DEFAULT => EPP::EDefault,
+            PERFORMANCE => EPP::Performance,
+            BALANCE_PERFORMANCE => EPP::BalancePerformance,
+            BALANCE_POWER => EPP::BalancePower,
+            POWER => EPP::Power,
+            _ => EPP::Unknown,
         }
     }
 }
@@ -44,27 +70,6 @@ impl ChargingStatus {
     }
 }
 
-/*
-#[derive(PartialEq, Debug)]
-pub enum EPP {
-    Powersave,
-    Performance,
-    BalancePower,
-    Unknown,
-}
-
-impl EPP {
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            PERFORMANCE => Self::Performance,
-            POWERSAVE => Self::Powersave,
-            BALANCE_POWER => Self::BalancePower,
-            _ => Self::Unknown,
-        }
-    }
-}
-*/
-
 #[derive(Debug)]
 enum CpuType {
     AMD,
@@ -81,28 +86,16 @@ enum ACPIType {
 
 pub struct SystemState {
     pub linux: bool,
-    pub cpu_type: CpuType,
-    pub acpi_type: ACPIType,
+    cpu_type: CpuType,
+    acpi_type: ACPIType,
     pub num_cpu_cores: usize,
-    //pub scaling_governer: ScalingGoverner,
-
-    // /sys/devices/system/cpu/cpu * /cpufreq/scaling_min_freq and scaling_max_freq
-    //pub scaling_min_freq: usize,
-    //pub scaling_max_freq: usize,
-
-    // amd pstate (/sys/devices/system/cpu/amd_pstate/status)
-    // enable/disable /sys/devices/system/cpu/cpufreq/boost
-    //  basically when big workload, enable
-    //cpu_freq_boost: bool,
-
-    // cpu temperatures (all and average)
 }
 
 impl fmt::Display for SystemState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tcpu core cout: {}",
+            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tcpu core count: {}",
             self.linux, self.cpu_type, self.acpi_type, self.num_cpu_cores,
         )
     }
@@ -231,7 +224,9 @@ impl SystemState {
 }
 
 pub fn set_powersave_mode(system_fds: &SystemFds) -> io::Result<()> {
-    system_fds.set_scaling_governer(ScalingGoverner::Powersave)
+    system_fds.set_scaling_governer(ScalingGoverner::Powersave)?;
+    system_fds.set_epp(EPP::BalancePower)?;
+    Ok(())
 }
 
 pub fn set_performance_mode(system_fds: &SystemFds) -> io::Result<()> {
@@ -240,5 +235,6 @@ pub fn set_performance_mode(system_fds: &SystemFds) -> io::Result<()> {
     //      low battery
     //      check load average
     //      check cpu freq
-    system_fds.set_scaling_governer(ScalingGoverner::Performance)
+    system_fds.set_scaling_governer(ScalingGoverner::Performance)?;
+    Ok(())
 }

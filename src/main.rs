@@ -1,18 +1,33 @@
 use crate::{
-    cli::{install_daemon, uninstall_daemon, Args, check_running_daemon_mode},
     events::handle_event,
     fds::SystemFds,
+    setup::{check_running_daemon_mode, install_daemon, uninstall_daemon},
     system_state::{set_performance_mode, set_powersave_mode, ChargingStatus, SystemState},
+    tui::run_tui,
 };
 use clap::Parser;
 use events::poll_events;
-use std::{io, os::unix::io::AsRawFd};
+use std::io::{self, Write};
 use udev::MonitorBuilder;
 
-mod cli;
 mod events;
 mod fds;
+mod setup;
 mod system_state;
+mod tui;
+
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Args {
+    #[arg(long, help = "Install powereg as a daemon on your system")]
+    pub install: bool,
+    #[arg(long, help = "Uninstall powereg on your system")]
+    pub uninstall: bool,
+    #[arg(long, help = "Run in live mode")]
+    pub live: bool,
+    #[arg(long, help = "Monitor running daemon and system stats")]
+    pub monitor: bool,
+}
 
 fn main() -> io::Result<()> {
     let args = Args::parse();
@@ -60,11 +75,27 @@ fn main() -> io::Result<()> {
             return Ok(());
         }
 
-        // TODO: make sure not already running in daemon mode
         loop {
             let event = poll_events(&socket);
             handle_event(&event, &mut system_fds)?;
         }
+    } else if args.monitor {
+        //if !check_running_daemon_mode()? {
+        //    println!("start powereg daemon mode with sudo powereg --daemon!");
+        //    return Ok(());
+        //}
+
+        loop {
+            print!("\x1B[2J\x1B[1;1H");
+            std::io::stdout().flush().unwrap();
+            println!("{}", system_fds);
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+
+        //color_eyre::install().unwrap();
+        //let terminal = ratatui::init();
+        //let _ = run_tui(terminal);
+        //ratatui::restore();
     } else if args.install {
         install_daemon()?;
     } else if args.uninstall {

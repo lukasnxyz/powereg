@@ -1,4 +1,7 @@
-use crate::system_state::{ChargingStatus, ScalingGoverner, PERFORMANCE, POWERSAVE};
+use crate::system_state::{
+    ChargingStatus, ScalingGoverner, BALANCE_PERFORMANCE, BALANCE_POWER, DEFAULT, EPP, PERFORMANCE,
+    POWER, POWERSAVE,
+};
 use std::{
     cell::RefCell,
     fmt,
@@ -36,20 +39,10 @@ impl PersFd {
     }
 }
 
-/*
-/sys/devices/system/cpu/cpu* /cpufreq/scaling_governor
-/sys/devices/system/cpu/cpu* /cpufreq/scaling_min_freq
-/sys/devices/system/cpu/cpu* /cpufreq/scaling_max_freq
-/sys/devices/system/cpu/cpu* /cpufreq/energy_performance_preference
-/sys/devices/system/cpu/intel_pstate/no_turbo
-/sys/devices/system/cpu/cpufreq/boost
-/sys/firmware/acpi/platform_profile
-*/
-
 pub struct SystemFds {
     cpu_core_count: usize,
-
     scaling_governer: Vec<RefCell<PersFd>>,
+    epp: Vec<RefCell<PersFd>>,
     min_cpu_freq: Vec<RefCell<PersFd>>,
     max_cpu_freq: Vec<RefCell<PersFd>>,
     cpu_freq: Vec<RefCell<PersFd>>,
@@ -57,12 +50,10 @@ pub struct SystemFds {
     battery_charging_status: RefCell<PersFd>,
     battery_capacity: RefCell<PersFd>,
     load_avg: RefCell<PersFd>,
+    cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
+    total_power_draw: RefCell<PersFd>,
     // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
-    // TODO: /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference (power, balance_power, balance_performance, performance)
-    //      intel_pstate and amd_pstate
-    // TODO: /sys/firmware/acpi/platform_profile (low-power, balanced, performance)
-
-    // battery thresholds on thinkpad
+    // TODO: battery thresholds on thinkpad
 }
 
 impl fmt::Display for SystemFds {
@@ -71,20 +62,26 @@ impl fmt::Display for SystemFds {
             f,
             "SystemFds Read:
         scaling governer: {:?}
+        epp: {:?}
         min/max cpu freq: {:.2}-{:.2} GHz
         cpu freq: {:.2} GHz
-        cpu temp: {}
+        cpu temp: {} C
+        cpu power draw: {:.2} W
         load avg: {:?}
         charging status: {:?}
-        battery capacity: {}",
+        battery capacity: {} %
+        total power draw: {} W",
             self.read_scaling_governer().unwrap(),
+            self.read_epp().unwrap(),
             self.read_min_cpu_freq().unwrap(),
             self.read_max_cpu_freq().unwrap(),
             self.read_avg_cpu_freq().unwrap(),
             self.read_cpu_temp().unwrap(),
+            self.read_cpu_power_draw().unwrap(),
             self.read_load_avg().unwrap(),
             self.read_battery_charging_status().unwrap(),
             self.read_battery_capacity().unwrap(),
+            self.read_total_power_draw().unwrap(),
         )
     }
 }
@@ -96,17 +93,32 @@ impl SystemFds {
             false,
         )?;
         assert_eq!(
+            available_scaling_governers.read_value()?,
             "performance powersave",
-            available_scaling_governers.read_value()?
+            "correct options for scaling governers",
+        );
+        let mut available_epps = PersFd::new(
+            "/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_available_preferences",
+            false,
+        )?;
+        assert_eq!(
+            available_epps.read_value()?,
+            "default performance balance_performance balance_power power",
+            "correct options for epp",
         );
 
         let mut scaling_governer: Vec<RefCell<PersFd>> = vec![];
+        let mut epp: Vec<RefCell<PersFd>> = vec![];
         let mut cpu_freq: Vec<RefCell<PersFd>> = vec![];
         let mut max_cpu_freq: Vec<RefCell<PersFd>> = vec![];
         let mut min_cpu_freq: Vec<RefCell<PersFd>> = vec![];
         for i in 0..n {
             let scaling_gov_path =
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", i);
+            let epp_path = format!(
+                "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference",
+                i
+            );
             let cpu_freq_path =
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", i);
             let min_cpu_freq_path =
@@ -115,14 +127,24 @@ impl SystemFds {
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", i);
 
             scaling_governer.push(RefCell::new(PersFd::new(&scaling_gov_path, true)?));
+            epp.push(RefCell::new(PersFd::new(&epp_path, true)?));
             cpu_freq.push(RefCell::new(PersFd::new(&cpu_freq_path, false)?));
             min_cpu_freq.push(RefCell::new(PersFd::new(&min_cpu_freq_path, true)?));
             max_cpu_freq.push(RefCell::new(PersFd::new(&max_cpu_freq_path, true)?));
         }
 
+        let mut amd_pstate_status =
+            PersFd::new("/sys/devices/system/cpu/amd_pstate/status", false)?;
+        assert_eq!(
+            amd_pstate_status.read_value()?,
+            "active",
+            "amd_pstate is active"
+        );
+
         Ok(Self {
             cpu_core_count: n,
             scaling_governer,
+            epp,
             cpu_freq,
             min_cpu_freq,
             max_cpu_freq,
@@ -138,6 +160,14 @@ impl SystemFds {
                 false,
             )?),
             load_avg: RefCell::new(PersFd::new("/proc/loadavg", false)?),
+            cpu_power_draw: RefCell::new(PersFd::new(
+                "/sys/class/powercap/intel-rapl:0/energy_uj",
+                false,
+            )?),
+            total_power_draw: RefCell::new(PersFd::new(
+                "/sys/class/power_supply/BAT0/power_now",
+                false,
+            )?),
         })
     }
 
@@ -184,11 +214,15 @@ impl SystemFds {
     pub fn read_scaling_governer(&self) -> io::Result<ScalingGoverner> {
         let gov =
             ScalingGoverner::from_string(&self.scaling_governer[0].borrow_mut().read_value()?);
-        assert_ne!(gov, ScalingGoverner::Unknown);
+        assert_ne!(
+            gov,
+            ScalingGoverner::Unknown,
+            "Scaling governer is not unknown"
+        );
 
         for fd in &self.scaling_governer[1..] {
             let val = ScalingGoverner::from_string(&fd.borrow_mut().read_value()?);
-            assert_eq!(gov, val);
+            assert_eq!(gov, val, "Scaling governer is the same for all cpu cores");
         }
 
         Ok(gov)
@@ -201,14 +235,51 @@ impl SystemFds {
             _ => {
                 return Err(io::Error::new(
                     ErrorKind::InvalidInput,
-                    "unsupported performance preference value",
+                    "Unsupported scaling governer value",
                 ))
             }
         };
 
-        println!("setting cpu performance preference to: {}", write);
+        println!("Setting cpu performance preference to: {}", write);
 
         for fd in &self.scaling_governer {
+            fd.borrow_mut().set_value(write)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn read_epp(&self) -> io::Result<EPP> {
+        let gov = EPP::from_string(&self.epp[0].borrow_mut().read_value()?);
+        assert_ne!(gov, EPP::Unknown, "EPP is not unknown");
+
+        for fd in &self.epp[1..] {
+            let val = EPP::from_string(&fd.borrow_mut().read_value()?);
+            assert_eq!(gov, val, "EPP is the same for all cpu cores");
+        }
+
+        Ok(gov)
+    }
+
+    pub fn set_epp(&self, epp: EPP) -> io::Result<()> {
+        // "default performance balance_performance balance_power power"
+        let write = match epp {
+            EPP::EDefault => DEFAULT,
+            EPP::Performance => PERFORMANCE,
+            EPP::BalancePerformance => BALANCE_PERFORMANCE,
+            EPP::BalancePower => BALANCE_POWER,
+            EPP::Power => POWER,
+            _ => {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    "Unsupported epp value",
+                ))
+            }
+        };
+
+        println!("Setting CPU epp to: {}", write);
+
+        for fd in &self.epp {
             fd.borrow_mut().set_value(write)?;
         }
 
@@ -242,7 +313,7 @@ impl SystemFds {
                 fd.borrow_mut().read_value()?.clone().parse().map_err(|_| {
                     io::Error::new(io::ErrorKind::InvalidData, "Failed to parse usize")
                 })?;
-            assert_eq!(prev, val);
+            assert_eq!(prev, val, "min_cpu_freq is the same for all cpu cores");
         }
 
         Ok((prev as f32) / 1_000_000.0)
@@ -263,7 +334,7 @@ impl SystemFds {
                 fd.borrow_mut().read_value()?.clone().parse().map_err(|_| {
                     io::Error::new(io::ErrorKind::InvalidData, "Failed to parse usize")
                 })?;
-            assert_eq!(prev, val);
+            assert_eq!(prev, val, "max_cpu_freq is the same for all cpu cores");
         }
 
         Ok((prev as f32) / 1_000_000.0)
@@ -297,5 +368,38 @@ impl SystemFds {
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse f32"))?;
 
         Ok((load_1min, load_5min, load_15min))
+    }
+
+    pub fn read_cpu_power_draw(&self) -> io::Result<f32> {
+        let start: u64 = self
+            .cpu_power_draw
+            .borrow_mut()
+            .read_value()?
+            .parse()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse u64"))?;
+
+        std::thread::sleep(std::time::Duration::from_secs_f32(0.5));
+
+        let end: u64 = self
+            .cpu_power_draw
+            .borrow_mut()
+            .read_value()?
+            .parse()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse u64"))?;
+
+        let watts = (end - start) as f32 / 1_000_000.0;
+        Ok(watts)
+    }
+
+    pub fn read_total_power_draw(&self) -> io::Result<f32> {
+        let power_uw: u64 = self
+            .total_power_draw
+            .borrow_mut()
+            .read_value()?
+            .parse()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse u64"))?;
+
+        let watts = power_uw as f32 / 1_000_000.0;
+        Ok(watts)
     }
 }
