@@ -11,13 +11,13 @@ use std::time::{Duration, Instant};
 
 const MAX_SAMPLES: usize = 350;
 
-struct Tui {
+struct CpuLoadGraph {
     data: Vec<f64>,
     counter: u32,
     last_tick: Instant,
 }
 
-impl Tui {
+impl CpuLoadGraph {
     fn new() -> Self {
         Self {
             data: Vec::new(),
@@ -53,7 +53,7 @@ impl Tui {
 
 pub fn run_tui(mut terminal: DefaultTerminal, system_fds: SystemFds) -> Result<()> {
     terminal.clear()?;
-    let mut app = Tui::new();
+    let mut app = CpuLoadGraph::new();
     let tick_rate = Duration::from_millis(300);
 
     loop {
@@ -80,12 +80,17 @@ pub fn run_tui(mut terminal: DefaultTerminal, system_fds: SystemFds) -> Result<(
     }
 }
 
-fn render(frame: &mut Frame, app: &Tui) {
+fn render(frame: &mut Frame, app: &CpuLoadGraph) {
+    let horizontal_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .margin(1)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(frame.area());
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(1)
         .constraints([Constraint::Percentage(50)])
-        .split(frame.area());
+        .split(horizontal_chunks[1]);
 
     let current_load = app.data.last().copied().unwrap_or(0.0);
     let chart_data = app.get_chart_data();
