@@ -85,17 +85,15 @@ fn main() -> io::Result<()> {
         //    return Ok(());
         //}
 
-        loop {
-            print!("\x1B[2J\x1B[1;1H");
-            std::io::stdout().flush().unwrap();
-            println!("{}", system_fds);
-            std::thread::sleep(std::time::Duration::from_secs(2));
-        }
+        //loop {
+        //    print!("\x1B[2J\x1B[1;1H");
+        //    std::io::stdout().flush().unwrap();
+        //    println!("{}", system_fds);
+        //    std::thread::sleep(std::time::Duration::from_secs(2));
+        //}
 
-        //color_eyre::install().unwrap();
-        //let terminal = ratatui::init();
-        //let _ = run_tui(terminal);
-        //ratatui::restore();
+        let terminal = ratatui::init();
+        let _ = run_tui(terminal, system_fds);
     } else if args.install {
         install_daemon()?;
     } else if args.uninstall {

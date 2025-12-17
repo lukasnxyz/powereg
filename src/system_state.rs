@@ -89,6 +89,7 @@ pub struct SystemState {
     cpu_type: CpuType,
     acpi_type: ACPIType,
     pub num_cpu_cores: usize,
+    config_path: String,
 }
 
 impl fmt::Display for SystemState {
@@ -108,6 +109,7 @@ impl SystemState {
             cpu_type: Self::detect_cpu_type(),
             acpi_type: Self::detect_acpi_type(),
             num_cpu_cores: Self::num_cpu_cores().unwrap(),
+            config_path: "".to_string(),
         }
     }
 
@@ -236,5 +238,8 @@ pub fn set_performance_mode(system_fds: &SystemFds) -> io::Result<()> {
     //      check load average
     //      check cpu freq
     system_fds.set_scaling_governer(ScalingGoverner::Performance)?;
+
+    // PLUGGED IN: only EPP::Performance is available
+
     Ok(())
 }

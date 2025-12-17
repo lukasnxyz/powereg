@@ -47,9 +47,9 @@ pub struct SystemFds {
     max_cpu_freq: Vec<RefCell<PersFd>>,
     cpu_freq: Vec<RefCell<PersFd>>,
     cpu_temp: RefCell<PersFd>,
+    cpu_load: RefCell<PersFd>,
     battery_charging_status: RefCell<PersFd>,
     battery_capacity: RefCell<PersFd>,
-    load_avg: RefCell<PersFd>,
     cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
     total_power_draw: RefCell<PersFd>,
     // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
@@ -66,10 +66,10 @@ impl fmt::Display for SystemFds {
         min/max cpu freq: {:.2}-{:.2} GHz
         cpu freq: {:.2} GHz
         cpu temp: {} C
+        cpu load: {:.2}%
         cpu power draw: {:.2} W
-        load avg: {:?}
         charging status: {:?}
-        battery capacity: {} %
+        battery capacity: {}%
         total power draw: {} W",
             self.read_scaling_governer().unwrap(),
             self.read_epp().unwrap(),
@@ -77,8 +77,8 @@ impl fmt::Display for SystemFds {
             self.read_max_cpu_freq().unwrap(),
             self.read_avg_cpu_freq().unwrap(),
             self.read_cpu_temp().unwrap(),
+            self.read_cpu_load().unwrap(),
             self.read_cpu_power_draw().unwrap(),
-            self.read_load_avg().unwrap(),
             self.read_battery_charging_status().unwrap(),
             self.read_battery_capacity().unwrap(),
             self.read_total_power_draw().unwrap(),
@@ -88,6 +88,9 @@ impl fmt::Display for SystemFds {
 
 impl SystemFds {
     pub fn init(n: usize) -> io::Result<Self> {
+        let mut battery_charging_status =
+            RefCell::new(PersFd::new("/sys/class/power_supply/BAT0/status", false)?);
+
         let mut available_scaling_governers = PersFd::new(
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors",
             false,
@@ -101,11 +104,22 @@ impl SystemFds {
             "/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_available_preferences",
             false,
         )?;
-        assert_eq!(
-            available_epps.read_value()?,
-            "default performance balance_performance balance_power power",
-            "correct options for epp",
-        );
+
+        let c_status =
+            ChargingStatus::from_string(&battery_charging_status.borrow_mut().read_value()?);
+        if c_status == ChargingStatus::Charging || c_status == ChargingStatus::NotCharging {
+            assert_eq!(
+                available_epps.read_value()?,
+                "performance",
+                "correct options for epp",
+            );
+        } else {
+            assert_eq!(
+                available_epps.read_value()?,
+                "default performance balance_performance balance_power power",
+                "correct options for epp",
+            );
+        }
 
         let mut scaling_governer: Vec<RefCell<PersFd>> = vec![];
         let mut epp: Vec<RefCell<PersFd>> = vec![];
@@ -149,17 +163,14 @@ impl SystemFds {
             min_cpu_freq,
             max_cpu_freq,
             cpu_temp: RefCell::new(PersFd::new("/sys/class/thermal/thermal_zone0/temp", false)?),
+            cpu_load: RefCell::new(PersFd::new("/proc/stat", false)?),
             // TODO: do with /sys/class/power_supply/AC/online and check
             //   if name_str.starts_with("AC") || name_str.starts_with("ACAD") {
-            battery_charging_status: RefCell::new(PersFd::new(
-                "/sys/class/power_supply/BAT0/status",
-                false,
-            )?),
+            battery_charging_status,
             battery_capacity: RefCell::new(PersFd::new(
                 "/sys/class/power_supply/BAT0/capacity",
                 false,
             )?),
-            load_avg: RefCell::new(PersFd::new("/proc/loadavg", false)?),
             cpu_power_draw: RefCell::new(PersFd::new(
                 "/sys/class/powercap/intel-rapl:0/energy_uj",
                 false,
@@ -353,21 +364,68 @@ impl SystemFds {
         Ok(temp / 1000)
     }
 
-    /// 1min, 5min, 15min
-    pub fn read_load_avg(&self) -> io::Result<(f32, f32, f32)> {
-        let contents = self.load_avg.borrow_mut().read_value()?;
-        let parts: Vec<&str> = contents.split_whitespace().collect();
-        let load_1min: f32 = parts[0]
-            .parse()
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse f32"))?;
-        let load_5min: f32 = parts[1]
-            .parse()
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse f32"))?;
-        let load_15min: f32 = parts[2]
-            .parse()
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse f32"))?;
+    pub fn read_cpu_load(&self) -> io::Result<f64> {
+        let proc_stat = self.cpu_load.borrow_mut().read_value()?;
+        let line = proc_stat
+            .lines()
+            .next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Empty /proc/stat"))?;
 
-        Ok((load_1min, load_5min, load_15min))
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 5 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid /proc/stat format",
+            ));
+        }
+
+        let prev: Vec<u64> = parts[1..]
+            .iter()
+            .map(|s| {
+                s.parse()
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Parse error"))
+            })
+            .collect::<io::Result<Vec<_>>>()?;
+        let prev_total: u64 = prev.iter().sum();
+        let prev_idle = prev[3] + if prev.len() > 4 { prev[4] } else { 0 };
+
+        std::thread::sleep(std::time::Duration::from_millis(250));
+
+        let proc_stat = self.cpu_load.borrow_mut().read_value()?;
+        let line = proc_stat
+            .lines()
+            .next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Empty /proc/stat"))?;
+
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 5 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid /proc/stat format",
+            ));
+        }
+
+        let now: Vec<u64> = parts[1..]
+            .iter()
+            .map(|s| {
+                s.parse()
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Parse error"))
+            })
+            .collect::<io::Result<Vec<_>>>()?;
+        let now_total: u64 = now.iter().sum();
+        let now_idle = now[3] + if now.len() > 4 { now[4] } else { 0 };
+
+        let total_delta = (now_total as i64 - prev_total as i64).max(1) as u64;
+        let idle_delta = now_idle as i64 - prev_idle as i64;
+
+        let load_percent = if total_delta > 0 {
+            let busy_delta = total_delta as i64 - idle_delta;
+            (busy_delta.max(0) as f64 / total_delta as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(load_percent)
     }
 
     pub fn read_cpu_power_draw(&self) -> io::Result<f32> {
