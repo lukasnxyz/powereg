@@ -58,6 +58,8 @@ pub struct SystemFds {
 
 impl fmt::Display for SystemFds {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO: make call to read_cpu_load async bc it sleeps
+        //      same for power draw
         write!(
             f,
             "SystemFds Read:
@@ -273,7 +275,6 @@ impl SystemFds {
     }
 
     pub fn set_epp(&self, epp: EPP) -> io::Result<()> {
-        // "default performance balance_performance balance_power power"
         let write = match epp {
             EPP::EDefault => DEFAULT,
             EPP::Performance => PERFORMANCE,

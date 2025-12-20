@@ -1,19 +1,15 @@
 use crate::{
     fds::SystemFds,
-    system_state::{set_performance_mode, set_powersave_mode, ScalingGoverner},
+    system_state::{set_performance_mode, set_powersave_mode},
 };
-use std::{fmt, io, os::unix::io::AsRawFd};
+use std::{fmt, io, os::unix::io::AsRawFd, time::{Duration, Instant}};
 
 pub enum Event {
     PowerInPlug,
     PowerUnPlug,
+    PeriodicCheck,
     Unknown,
     Error(String),
-    //IncCPULoad,
-    //DropCPULoad,
-
-    //LowBattery,
-    //FullBattery,
 }
 
 impl fmt::Display for Event {
@@ -23,43 +19,75 @@ impl fmt::Display for Event {
             Event::PowerUnPlug => write!(f, "power un plugged"),
             Event::Unknown => write!(f, "unknown event occured"),
             Event::Error(err) => write!(f, "an error occured: {}", err),
+            Event::PeriodicCheck => write!(f, "periodic check"),
         }
     }
 }
 
-pub fn poll_events(socket: &udev::MonitorSocket) -> Event {
-    let mut fds = [libc::pollfd {
-        fd: socket.as_raw_fd(),
-        events: libc::POLLIN,
-        revents: 0,
-    }];
-    let result = unsafe { libc::poll(fds.as_mut_ptr(), 1, -1) };
-    if result < 0 {
-        return Event::Error(io::Error::last_os_error().to_string());
+pub struct EventPoller {
+    socket: udev::MonitorSocket,
+    last_periodic_check: Instant,
+    periodic_interval: Duration,
+
+}
+
+impl EventPoller {
+    pub fn new(socket: udev::MonitorSocket) -> Self {
+        Self {
+            socket,
+            last_periodic_check: Instant::now(),
+            periodic_interval: Duration::from_secs(5),
+        }
     }
 
-    for event in socket.iter() {
-        if event.event_type() == udev::EventType::Change {
-            if let Some(name) = event.property_value("POWER_SUPPLY_NAME") {
-                let name_str = name.to_str().unwrap_or("");
+    pub fn poll_events(&mut self) -> Event {
+        let elapsed = self.last_periodic_check.elapsed();
+        let timeout_ms = if elapsed >= self.periodic_interval {
+            0
+        } else {
+            (self.periodic_interval - elapsed).as_millis() as i32
+        };
 
-                if name_str == "ACAD" || name_str == "AC" || name_str == "ADP1" || name_str == "AC0"
-                {
-                    if let Some(online) = event.property_value("POWER_SUPPLY_ONLINE") {
-                        let online_str = online.to_str().unwrap_or("");
+        let mut fds = [libc::pollfd {
+            fd: self.socket.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        }];
 
-                        match online_str {
-                            "1" => return Event::PowerInPlug,
-                            "0" => return Event::PowerUnPlug,
-                            _ => return Event::Unknown,
+        let result = unsafe { libc::poll(fds.as_mut_ptr(), 1, timeout_ms) };
+
+        if result < 0 {
+            return Event::Error(io::Error::last_os_error().to_string());
+        }
+
+        if self.last_periodic_check.elapsed() >= self.periodic_interval {
+            self.last_periodic_check = Instant::now();
+            return Event::PeriodicCheck;
+        }
+
+        for event in self.socket.iter() {
+            if event.event_type() == udev::EventType::Change {
+                if let Some(name) = event.property_value("POWER_SUPPLY_NAME") {
+                    let name_str = name.to_str().unwrap_or("");
+
+                    if name_str == "ACAD" || name_str == "AC" || name_str == "ADP1" || name_str == "AC0"
+                    {
+                        if let Some(online) = event.property_value("POWER_SUPPLY_ONLINE") {
+                            let online_str = online.to_str().unwrap_or("");
+
+                            match online_str {
+                                "1" => return Event::PowerInPlug,
+                                "0" => return Event::PowerUnPlug,
+                                _ => return Event::Unknown,
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
-    Event::Unknown
+        Event::Unknown
+    }
 }
 
 pub fn handle_event(event: &Event, system_fds: &mut SystemFds) -> io::Result<()> {
@@ -72,9 +100,19 @@ pub fn handle_event(event: &Event, system_fds: &mut SystemFds) -> io::Result<()>
             println!("event: {}", event);
             set_powersave_mode(system_fds)?;
         }
+        Event::PeriodicCheck => {
+            //check_battery_level(system_fds)?;
+            //check_cpu_temperature(system_fds)?;
+        }
         Event::Unknown => {}
         Event::Error(_) => {}
     }
+
+    //IncCPULoad,
+    //DropCPULoad,
+
+    //LowBattery,
+    //FullBattery,
 
     // TODO: if printing fails, don't crash
     println!("{}", system_fds);

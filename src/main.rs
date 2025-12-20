@@ -1,13 +1,12 @@
 use crate::{
-    events::handle_event,
+    events::{EventPoller, handle_event},
     fds::SystemFds,
     setup::{check_running_daemon_mode, install_daemon, uninstall_daemon},
-    system_state::{set_performance_mode, set_powersave_mode, ChargingStatus, SystemState},
+    system_state::{ChargingStatus, Config, SystemState, set_performance_mode, set_powersave_mode},
     tui::run_tui,
 };
 use clap::Parser;
-use events::poll_events;
-use std::io::{self, Write};
+use std::io;
 use udev::MonitorBuilder;
 
 mod events;
@@ -15,6 +14,8 @@ mod fds;
 mod setup;
 mod system_state;
 mod tui;
+
+const CONFIG_PATH: &str = "~/.config/powereg/config.toml";
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -44,14 +45,6 @@ fn main() -> io::Result<()> {
     }
     println!("{}", system_state);
 
-    // TODO: read config file on startup for battery thresholds
-
-    //if args.monitor {
-    //    // TODO: make sure daemon mode running
-    //    println!("system monitor not implemented yet!");
-    //    return Ok(());
-    //}
-
     // TODO: more events:
     //      low battery (< 20%)
     //      high cpu temp
@@ -66,6 +59,16 @@ fn main() -> io::Result<()> {
         ChargingStatus::NotCharging => set_performance_mode(&system_fds)?,
         ChargingStatus::Unknown => set_powersave_mode(&system_fds)?,
     }
+
+    match Config::parse(CONFIG_PATH) {
+        Ok(config) => {
+            config.apply(&system_fds)?;
+        }
+        Err(e) => {
+            eprintln!("Error loading config: {}", e);
+        }
+    };
+
     println!("{}", system_fds);
 
     if args.live {
@@ -75,21 +78,15 @@ fn main() -> io::Result<()> {
             return Ok(());
         }
 
+        let mut poller = EventPoller::new(socket);
         loop {
-            let event = poll_events(&socket);
+            let event = poller.poll_events();
             handle_event(&event, &mut system_fds)?;
         }
     } else if args.monitor {
         //if !check_running_daemon_mode()? {
         //    println!("start powereg daemon mode with sudo powereg --daemon!");
         //    return Ok(());
-        //}
-
-        //loop {
-        //    print!("\x1B[2J\x1B[1;1H");
-        //    std::io::stdout().flush().unwrap();
-        //    println!("{}", system_fds);
-        //    std::thread::sleep(std::time::Duration::from_secs(2));
         //}
 
         let terminal = ratatui::init();

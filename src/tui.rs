@@ -9,7 +9,7 @@ use ratatui::{
 };
 use std::time::{Duration, Instant};
 
-const MAX_SAMPLES: usize = 350;
+const MAX_SAMPLES: usize = 300;
 
 struct CpuLoadGraph {
     data: Vec<f64>,

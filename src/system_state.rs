@@ -1,5 +1,6 @@
 use crate::fds::SystemFds;
-use std::{fmt, fs, io, path::Path};
+use std::{fmt, fs, io::{self, Error, ErrorKind}, path::Path};
+use serde::Deserialize;
 
 pub const POWERSAVE: &str = "powersave";
 pub const POWER: &str = "power";
@@ -70,6 +71,47 @@ impl ChargingStatus {
     }
 }
 
+#[derive(Deserialize)]
+struct ConfigFile {
+    battery: BatteryConfig,
+}
+
+#[derive(Deserialize)]
+struct BatteryConfig {
+    start_threshold: u8,
+    stop_threshold: u8,
+}
+
+pub struct Config {
+    pub charge_start_threshold: Option<u8>,
+    pub charge_stop_threshold: Option<u8>,
+}
+
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,"SystemFds Read:")
+    }
+}
+
+impl Config {
+    pub fn parse(config_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        if !Path::new(config_path).exists() {
+            return Err(Box::new(Error::new(ErrorKind::NotFound, "No config file found")));
+        }
+
+        let contents = fs::read_to_string(config_path)?;
+        let config_file: ConfigFile = toml::from_str(&contents)?;
+        Ok(Self {
+            charge_start_threshold: Some(config_file.battery.start_threshold),
+            charge_stop_threshold: Some(config_file.battery.stop_threshold),
+        })
+    }
+
+    pub fn apply(&self, system_fds: &SystemFds) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 enum CpuType {
     AMD,
@@ -89,7 +131,6 @@ pub struct SystemState {
     cpu_type: CpuType,
     acpi_type: ACPIType,
     pub num_cpu_cores: usize,
-    config_path: String,
 }
 
 impl fmt::Display for SystemState {
@@ -109,7 +150,6 @@ impl SystemState {
             cpu_type: Self::detect_cpu_type(),
             acpi_type: Self::detect_acpi_type(),
             num_cpu_cores: Self::num_cpu_cores().unwrap(),
-            config_path: "".to_string(),
         }
     }
 
@@ -232,14 +272,12 @@ pub fn set_powersave_mode(system_fds: &SystemFds) -> io::Result<()> {
 }
 
 pub fn set_performance_mode(system_fds: &SystemFds) -> io::Result<()> {
-    // TODO: check
-    //      cpu temp
-    //      low battery
-    //      check load average
-    //      check cpu freq
-    system_fds.set_scaling_governer(ScalingGoverner::Performance)?;
+    if system_fds.read_battery_charging_status()? == ChargingStatus::DisCharging {
+        return Ok(());
+    }
 
-    // PLUGGED IN: only EPP::Performance is available
+    system_fds.set_scaling_governer(ScalingGoverner::Performance)?;
+    system_fds.set_epp(EPP::Performance)?;
 
     Ok(())
 }
