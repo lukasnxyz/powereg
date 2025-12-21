@@ -50,6 +50,8 @@ pub struct SystemFds {
     cpu_load: RefCell<PersFd>,
     battery_charging_status: RefCell<PersFd>,
     battery_capacity: RefCell<PersFd>,
+    charge_start_threshold: RefCell<PersFd>,
+    charge_stop_threshold: RefCell<PersFd>,
     cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
     total_power_draw: RefCell<PersFd>,
     // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
@@ -72,6 +74,8 @@ impl fmt::Display for SystemFds {
         cpu power draw: {:.2} W
         charging status: {:?}
         battery capacity: {}%
+        charge start threshold: {}
+        charge stop threshold: {}
         total power draw: {} W",
             self.read_scaling_governer().unwrap(),
             self.read_epp().unwrap(),
@@ -83,6 +87,8 @@ impl fmt::Display for SystemFds {
             self.read_cpu_power_draw().unwrap(),
             self.read_battery_charging_status().unwrap(),
             self.read_battery_capacity().unwrap(),
+            self.read_charge_start_threshold().unwrap(),
+            self.read_charge_stop_threshold().unwrap(),
             self.read_total_power_draw().unwrap(),
         )
     }
@@ -173,6 +179,14 @@ impl SystemFds {
                 "/sys/class/power_supply/BAT0/capacity",
                 false,
             )?),
+            charge_start_threshold: RefCell::new(PersFd::new(
+                "/sys/class/power_supply/BAT0/charge_start_threshold",
+                true,
+            )?),
+            charge_stop_threshold: RefCell::new(PersFd::new(
+                "/sys/class/power_supply/BAT0/charge_stop_threshold",
+                true,
+            )?),
             cpu_power_draw: RefCell::new(PersFd::new(
                 "/sys/class/powercap/intel-rapl:0/energy_uj",
                 false,
@@ -222,6 +236,36 @@ impl SystemFds {
             .read_value()?
             .parse()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse usize"))?)
+    }
+
+    pub fn read_charge_start_threshold(&self) -> io::Result<usize> {
+        Ok(self
+            .charge_start_threshold
+            .borrow_mut()
+            .read_value()?
+            .parse()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse usize"))?)
+    }
+
+    pub fn set_charge_start_threshold(&self, start: usize) -> io::Result<()> {
+        self.charge_start_threshold
+            .borrow_mut()
+            .set_value(&start.to_string())
+    }
+
+    pub fn read_charge_stop_threshold(&self) -> io::Result<usize> {
+        Ok(self
+            .charge_stop_threshold
+            .borrow_mut()
+            .read_value()?
+            .parse()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse usize"))?)
+    }
+
+    pub fn set_charge_stop_threshold(&self, stop: usize) -> io::Result<()> {
+        self.charge_stop_threshold
+            .borrow_mut()
+            .set_value(&stop.to_string())
     }
 
     pub fn read_scaling_governer(&self) -> io::Result<ScalingGoverner> {

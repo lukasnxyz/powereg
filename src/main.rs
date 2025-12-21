@@ -1,8 +1,8 @@
 use crate::{
-    events::{EventPoller, handle_event},
+    events::{handle_event, EventPoller},
     fds::SystemFds,
     setup::{check_running_daemon_mode, install_daemon, uninstall_daemon},
-    system_state::{ChargingStatus, Config, SystemState, set_performance_mode, set_powersave_mode},
+    system_state::{set_performance_mode, set_powersave_mode, ChargingStatus, Config, SystemState},
     tui::run_tui,
 };
 use clap::Parser;

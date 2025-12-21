@@ -1,6 +1,10 @@
 use crate::fds::SystemFds;
-use std::{fmt, fs, io::{self, Error, ErrorKind}, path::Path};
 use serde::Deserialize;
+use std::{
+    fmt, fs,
+    io::{self, Error, ErrorKind},
+    path::Path,
+};
 
 pub const POWERSAVE: &str = "powersave";
 pub const POWER: &str = "power";
@@ -89,14 +93,17 @@ pub struct Config {
 
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,"SystemFds Read:")
+        write!(f, "SystemFds Read:")
     }
 }
 
 impl Config {
     pub fn parse(config_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         if !Path::new(config_path).exists() {
-            return Err(Box::new(Error::new(ErrorKind::NotFound, "No config file found")));
+            return Err(Box::new(Error::new(
+                ErrorKind::NotFound,
+                "No config file found",
+            )));
         }
 
         let contents = fs::read_to_string(config_path)?;
@@ -108,6 +115,14 @@ impl Config {
     }
 
     pub fn apply(&self, system_fds: &SystemFds) -> io::Result<()> {
+        if let Some(start_thresh) = self.charge_start_threshold {
+            system_fds.set_charge_start_threshold(start_thresh.into())?;
+        }
+
+        if let Some(stop_thresh) = self.charge_stop_threshold {
+            system_fds.set_charge_stop_threshold(stop_thresh.into())?;
+        }
+
         Ok(())
     }
 }

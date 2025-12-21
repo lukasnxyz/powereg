@@ -2,7 +2,11 @@ use crate::{
     fds::SystemFds,
     system_state::{set_performance_mode, set_powersave_mode},
 };
-use std::{fmt, io, os::unix::io::AsRawFd, time::{Duration, Instant}};
+use std::{
+    fmt, io,
+    os::unix::io::AsRawFd,
+    time::{Duration, Instant},
+};
 
 pub enum Event {
     PowerInPlug,
@@ -28,7 +32,6 @@ pub struct EventPoller {
     socket: udev::MonitorSocket,
     last_periodic_check: Instant,
     periodic_interval: Duration,
-
 }
 
 impl EventPoller {
@@ -70,7 +73,10 @@ impl EventPoller {
                 if let Some(name) = event.property_value("POWER_SUPPLY_NAME") {
                     let name_str = name.to_str().unwrap_or("");
 
-                    if name_str == "ACAD" || name_str == "AC" || name_str == "ADP1" || name_str == "AC0"
+                    if name_str == "ACAD"
+                        || name_str == "AC"
+                        || name_str == "ADP1"
+                        || name_str == "AC0"
                     {
                         if let Some(online) = event.property_value("POWER_SUPPLY_ONLINE") {
                             let online_str = online.to_str().unwrap_or("");
