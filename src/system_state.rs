@@ -114,7 +114,13 @@ impl Config {
         })
     }
 
-    pub fn apply(&self, system_fds: &SystemFds) -> io::Result<()> {
+    pub fn apply(&self, system_fds: &SystemFds, system_state: &SystemState) -> io::Result<()> {
+        assert_eq!(
+            system_state.acpi_type,
+            ACPIType::ThinkPad,
+            "only thinkpad acpi supported now"
+        );
+
         if let Some(start_thresh) = self.charge_start_threshold {
             system_fds.set_charge_start_threshold(start_thresh.into())?;
         }
@@ -134,7 +140,7 @@ enum CpuType {
     Unknown,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum ACPIType {
     ThinkPad,
     IdeaPad,

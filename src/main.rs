@@ -62,7 +62,7 @@ fn main() -> io::Result<()> {
 
     match Config::parse(CONFIG_PATH) {
         Ok(config) => {
-            config.apply(&system_fds)?;
+            config.apply(&system_fds, &system_state)?;
         }
         Err(e) => {
             eprintln!("Error loading config: {}", e);
