@@ -6,8 +6,14 @@ use crate::{
     tui::run_tui,
 };
 use clap::Parser;
-use std::io;
-use udev::MonitorBuilder;
+use std::{
+    io,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
+};
 
 mod events;
 mod fds;
@@ -19,15 +25,18 @@ const CONFIG_PATH: &str = "~/.config/powereg/config.toml";
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
+#[group(id = "mode", required = true, multiple = false)]
 struct Args {
-    #[arg(long, help = "Install powereg as a daemon on your system")]
-    pub install: bool,
-    #[arg(long, help = "Uninstall powereg on your system")]
-    pub uninstall: bool,
     #[arg(long, help = "Run in live mode")]
     pub live: bool,
     #[arg(long, help = "Monitor running daemon and system stats")]
     pub monitor: bool,
+    #[arg(long, help = "Run powereg daemon mode")]
+    pub daemon: bool,
+    #[arg(long, help = "Install powereg as a daemon on your system")]
+    pub install: bool,
+    #[arg(long, help = "Uninstall powereg on your system")]
+    pub uninstall: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -45,13 +54,6 @@ fn main() -> io::Result<()> {
     }
     println!("{}", system_state);
 
-    // TODO: more events:
-    //      low battery (< 20%)
-    //      high cpu temp
-    let socket = MonitorBuilder::new()?
-        .match_subsystem("power_supply")?
-        .listen()?;
-
     let mut system_fds = SystemFds::init(system_state.num_cpu_cores)?;
     match system_fds.read_battery_charging_status()? {
         ChargingStatus::Charging => set_performance_mode(&system_fds)?,
@@ -61,15 +63,9 @@ fn main() -> io::Result<()> {
     }
 
     match Config::parse(CONFIG_PATH) {
-        Ok(config) => {
-            config.apply(&system_fds, &system_state)?;
-        }
-        Err(e) => {
-            eprintln!("Error loading config: {}", e);
-        }
+        Ok(config) => config.apply(&system_fds, &system_state)?,
+        Err(e) => eprintln!("Error loading config: {}", e),
     };
-
-    println!("{}", system_fds);
 
     if args.live {
         if check_running_daemon_mode()? {
@@ -78,11 +74,25 @@ fn main() -> io::Result<()> {
             return Ok(());
         }
 
-        let mut poller = EventPoller::new(socket);
-        loop {
-            let event = poller.poll_events();
-            handle_event(&event, &mut system_fds)?;
-        }
+        let stop_signal = Arc::new(AtomicBool::new(false));
+        let r = stop_signal.clone();
+        let event_handle = thread::spawn(move || -> io::Result<()> {
+            let n_system_fds = SystemFds::init(system_state.num_cpu_cores)?;
+
+            let mut poller = EventPoller::new()?;
+            while !r.load(Ordering::Relaxed) {
+                let event = poller.poll_events();
+                handle_event(&event, &n_system_fds)?;
+            }
+
+            Ok(())
+        });
+
+        let terminal = ratatui::init();
+        let _ = run_tui(terminal, &system_fds);
+
+        stop_signal.store(true, Ordering::Relaxed);
+        let _ = event_handle.join();
     } else if args.monitor {
         //if !check_running_daemon_mode()? {
         //    println!("start powereg daemon mode with sudo powereg --daemon!");
@@ -90,7 +100,13 @@ fn main() -> io::Result<()> {
         //}
 
         let terminal = ratatui::init();
-        let _ = run_tui(terminal, system_fds);
+        let _ = run_tui(terminal, &system_fds);
+    } else if args.daemon {
+        let mut poller = EventPoller::new()?;
+        loop {
+            let event = poller.poll_events();
+            handle_event(&event, &mut system_fds)?;
+        }
     } else if args.install {
         install_daemon()?;
     } else if args.uninstall {

@@ -51,7 +51,7 @@ impl CpuLoadGraph {
     }
 }
 
-pub fn run_tui(mut terminal: DefaultTerminal, system_fds: SystemFds) -> Result<()> {
+pub fn run_tui(mut terminal: DefaultTerminal, system_fds: &SystemFds) -> Result<()> {
     terminal.clear()?;
     let mut app = CpuLoadGraph::new();
     let tick_rate = Duration::from_millis(300);

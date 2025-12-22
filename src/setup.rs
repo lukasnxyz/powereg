@@ -3,6 +3,7 @@ use std::{io, process::Command};
 const SERVICE_NAME: &str = "powereg";
 const SERVICE_PATH: &str = "/etc/systemd/system/powereg.service";
 const BINARY_PATH: &str = "/usr/local/bin/powereg";
+const RUN_FLAG: &str = "--daemon";
 
 pub fn check_running_daemon_mode() -> io::Result<bool> {
     let output = std::process::Command::new("systemctl")
@@ -37,7 +38,7 @@ Documentation=man:{}(8)
 [Service]
 Type=simple
 User=root
-ExecStart={}
+ExecStart={} {}
 Restart=on-failure
 RestartSec=10
 
@@ -55,7 +56,7 @@ SyslogIdentifier={}
 [Install]
 WantedBy=multi-user.target
     "#,
-        SERVICE_NAME, BINARY_PATH, SERVICE_NAME
+        SERVICE_NAME, BINARY_PATH, RUN_FLAG, SERVICE_NAME
     );
 
     std::fs::write(SERVICE_PATH, service_file).map_err(|e| {

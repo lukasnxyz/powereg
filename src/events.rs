@@ -7,7 +7,11 @@ use std::{
     os::unix::io::AsRawFd,
     time::{Duration, Instant},
 };
+use udev::MonitorBuilder;
 
+// TODO: more events:
+//      low battery (< 20%)
+//      high cpu temp
 pub enum Event {
     PowerInPlug,
     PowerUnPlug,
@@ -35,12 +39,16 @@ pub struct EventPoller {
 }
 
 impl EventPoller {
-    pub fn new(socket: udev::MonitorSocket) -> Self {
-        Self {
+    pub fn new() -> io::Result<Self> {
+        let socket = MonitorBuilder::new()?
+            .match_subsystem("power_supply")?
+            .listen()?;
+
+        Ok(Self {
             socket,
             last_periodic_check: Instant::now(),
             periodic_interval: Duration::from_secs(5),
-        }
+        })
     }
 
     pub fn poll_events(&mut self) -> Event {
@@ -96,7 +104,7 @@ impl EventPoller {
     }
 }
 
-pub fn handle_event(event: &Event, system_fds: &mut SystemFds) -> io::Result<()> {
+pub fn handle_event(event: &Event, system_fds: &SystemFds) -> io::Result<()> {
     match event {
         Event::PowerInPlug => {
             println!("event: {}", event);

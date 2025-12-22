@@ -7,6 +7,8 @@ use std::{
     fmt,
     fs::{File, OpenOptions},
     io::{self, prelude::*, ErrorKind, Seek, SeekFrom, Write},
+    thread,
+    time::Duration,
 };
 
 pub struct PersFd {
@@ -60,8 +62,6 @@ pub struct SystemFds {
 
 impl fmt::Display for SystemFds {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: make call to read_cpu_load async bc it sleeps
-        //      same for power draw
         write!(
             f,
             "SystemFds Read:
@@ -70,7 +70,7 @@ impl fmt::Display for SystemFds {
         min/max cpu freq: {:.2}-{:.2} GHz
         cpu freq: {:.2} GHz
         cpu temp: {} C
-        cpu load: {:.2}%
+        cpu load: {:?}%
         cpu power draw: {:.2} W
         charging status: {:?}
         battery capacity: {}%
@@ -96,9 +96,6 @@ impl fmt::Display for SystemFds {
 
 impl SystemFds {
     pub fn init(n: usize) -> io::Result<Self> {
-        let mut battery_charging_status =
-            RefCell::new(PersFd::new("/sys/class/power_supply/BAT0/status", false)?);
-
         let mut available_scaling_governers = PersFd::new(
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors",
             false,
@@ -113,6 +110,8 @@ impl SystemFds {
             false,
         )?;
 
+        let battery_charging_status =
+            RefCell::new(PersFd::new("/sys/class/power_supply/BAT0/status", false)?);
         let c_status =
             ChargingStatus::from_string(&battery_charging_status.borrow_mut().read_value()?);
         if c_status == ChargingStatus::Charging || c_status == ChargingStatus::NotCharging {
@@ -434,7 +433,7 @@ impl SystemFds {
         let prev_total: u64 = prev.iter().sum();
         let prev_idle = prev[3] + if prev.len() > 4 { prev[4] } else { 0 };
 
-        std::thread::sleep(std::time::Duration::from_millis(250));
+        thread::sleep(Duration::from_millis(250));
 
         let proc_stat = self.cpu_load.borrow_mut().read_value()?;
         let line = proc_stat
