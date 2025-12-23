@@ -1,10 +1,12 @@
-use crate::fds::SystemFds;
-use serde::Deserialize;
-use std::{
-    fmt, fs,
-    io::{self, Error, ErrorKind},
-    path::Path,
+use crate::{
+    battery::{BatteryStates, BatteryStatesError},
+    cpu::{CpuStates, CpuStatesError},
 };
+use serde::Deserialize;
+use std::fmt;
+use std::fs;
+use std::path::Path;
+use std::io::{self, Error, ErrorKind};
 
 pub const POWERSAVE: &str = "powersave";
 pub const POWER: &str = "power";
@@ -114,19 +116,23 @@ impl Config {
         })
     }
 
-    pub fn apply(&self, system_fds: &SystemFds, system_state: &SystemState) -> io::Result<()> {
-        assert_eq!(
-            system_state.acpi_type,
-            ACPIType::ThinkPad,
-            "only thinkpad acpi supported now"
-        );
+    pub fn apply(&self, system_state: &SystemState) -> Result<(), SystemStateError> {
+        if system_state.acpi_type != ACPIType::ThinkPad {
+            return Err(SystemStateError::ACPITypeErr(
+                "only thinkpad acpi supported now".to_string(),
+            ));
+        }
 
         if let Some(start_thresh) = self.charge_start_threshold {
-            system_fds.set_charge_start_threshold(start_thresh.into())?;
+            system_state
+                .battery_states
+                .set_charge_start_threshold(start_thresh.into())?;
         }
 
         if let Some(stop_thresh) = self.charge_stop_threshold {
-            system_fds.set_charge_stop_threshold(stop_thresh.into())?;
+            system_state
+                .battery_states
+                .set_charge_stop_threshold(stop_thresh.into())?;
         }
 
         Ok(())
@@ -147,11 +153,51 @@ enum ACPIType {
     Unknown,
 }
 
+#[derive(Debug)]
+pub enum SystemStateError {
+    ACPITypeErr(String),
+    CpuStatesErr(CpuStatesError),
+    BatteryStatesErr(BatteryStatesError),
+    GeneralIoErr(io::Error),
+}
+
+impl fmt::Display for SystemStateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SystemStateError::ACPITypeErr(e) => write!(f, "{e}"),
+            SystemStateError::CpuStatesErr(e) => write!(f, "{e}"),
+            SystemStateError::BatteryStatesErr(e) => write!(f, "{e}"),
+            SystemStateError::GeneralIoErr(e) => write!(f, "General io error: {e}"),
+        }
+    }
+}
+
+impl From<CpuStatesError> for SystemStateError {
+    fn from(error: CpuStatesError) -> Self {
+        SystemStateError::CpuStatesErr(error)
+    }
+}
+
+impl From<BatteryStatesError> for SystemStateError {
+    fn from(error: BatteryStatesError) -> Self {
+        SystemStateError::BatteryStatesErr(error)
+    }
+}
+
+impl From<io::Error> for SystemStateError {
+    fn from(error: io::Error) -> Self {
+        SystemStateError::GeneralIoErr(error)
+    }
+}
+
 pub struct SystemState {
     pub linux: bool,
     cpu_type: CpuType,
     acpi_type: ACPIType,
     pub num_cpu_cores: usize,
+
+    pub cpu_states: CpuStates,
+    pub battery_states: BatteryStates,
 }
 
 impl fmt::Display for SystemState {
@@ -165,13 +211,44 @@ impl fmt::Display for SystemState {
 }
 
 impl SystemState {
-    pub fn init() -> Self {
-        Self {
+    pub fn init() -> Result<Self, SystemStateError> {
+        let num_cpu_cores = Self::num_cpu_cores()?;
+        Ok(Self {
             linux: Self::detect_linux(),
             cpu_type: Self::detect_cpu_type(),
             acpi_type: Self::detect_acpi_type(),
-            num_cpu_cores: Self::num_cpu_cores().unwrap(),
+            num_cpu_cores,
+            cpu_states: CpuStates::init(num_cpu_cores)?,
+            battery_states: BatteryStates::init()?,
+        })
+    }
+
+    pub fn post_init(&self) -> Result<(), SystemStateError> {
+        match self.battery_states.read_battery_charging_status()? {
+            ChargingStatus::Charging => self.set_performance_mode(),
+            ChargingStatus::DisCharging => self.set_powersave_mode(),
+            ChargingStatus::NotCharging => self.set_performance_mode(),
+            ChargingStatus::Unknown => self.set_powersave_mode(),
         }
+    }
+
+    pub fn set_powersave_mode(&self) -> Result<(), SystemStateError> {
+        self.cpu_states
+            .set_scaling_governer(ScalingGoverner::Powersave)?;
+        self.cpu_states.set_epp(EPP::BalancePower)?;
+        Ok(())
+    }
+
+    pub fn set_performance_mode(&self) -> Result<(), SystemStateError> {
+        if self.battery_states.read_battery_charging_status()? == ChargingStatus::DisCharging {
+            return Ok(());
+        }
+
+        self.cpu_states
+            .set_scaling_governer(ScalingGoverner::Performance)?;
+        self.cpu_states.set_epp(EPP::Performance)?;
+
+        Ok(())
     }
 
     fn detect_linux() -> bool {
@@ -259,7 +336,7 @@ impl SystemState {
         }
     }
 
-    fn num_cpu_cores() -> io::Result<usize> {
+    fn num_cpu_cores() -> Result<usize, SystemStateError> {
         let cpu_dir = "/sys/devices/system/cpu/";
         let mut count = 0;
 
@@ -284,21 +361,4 @@ impl SystemState {
     fn detect_acpi_type() -> ACPIType {
         return ACPIType::ThinkPad;
     }
-}
-
-pub fn set_powersave_mode(system_fds: &SystemFds) -> io::Result<()> {
-    system_fds.set_scaling_governer(ScalingGoverner::Powersave)?;
-    system_fds.set_epp(EPP::BalancePower)?;
-    Ok(())
-}
-
-pub fn set_performance_mode(system_fds: &SystemFds) -> io::Result<()> {
-    if system_fds.read_battery_charging_status()? == ChargingStatus::DisCharging {
-        return Ok(());
-    }
-
-    system_fds.set_scaling_governer(ScalingGoverner::Performance)?;
-    system_fds.set_epp(EPP::Performance)?;
-
-    Ok(())
 }

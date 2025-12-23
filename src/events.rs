@@ -1,7 +1,4 @@
-use crate::{
-    fds::SystemFds,
-    system_state::{set_performance_mode, set_powersave_mode},
-};
+use crate::system_state::{SystemState, SystemStateError};
 use std::{
     fmt, io,
     os::unix::io::AsRawFd,
@@ -104,15 +101,15 @@ impl EventPoller {
     }
 }
 
-pub fn handle_event(event: &Event, system_fds: &SystemFds) -> io::Result<()> {
+pub fn handle_event(event: &Event, system_state: &SystemState) -> Result<(), SystemStateError> {
     match event {
         Event::PowerInPlug => {
             println!("event: {}", event);
-            set_performance_mode(system_fds)?;
+            system_state.set_performance_mode()?;
         }
         Event::PowerUnPlug => {
             println!("event: {}", event);
-            set_powersave_mode(system_fds)?;
+            system_state.set_powersave_mode()?;
         }
         Event::PeriodicCheck => {
             //check_battery_level(system_fds)?;
@@ -129,7 +126,8 @@ pub fn handle_event(event: &Event, system_fds: &SystemFds) -> io::Result<()> {
     //FullBattery,
 
     // TODO: if printing fails, don't crash
-    println!("{}", system_fds);
+    println!("{}", system_state.cpu_states);
+    println!("{}", system_state.battery_states);
 
     Ok(())
 }

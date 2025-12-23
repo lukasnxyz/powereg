@@ -1,4 +1,4 @@
-use crate::fds::SystemFds;
+use crate::system_state::SystemState;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
@@ -51,7 +51,7 @@ impl CpuLoadGraph {
     }
 }
 
-pub fn run_tui(mut terminal: DefaultTerminal, system_fds: &SystemFds) -> Result<()> {
+pub fn run_tui(mut terminal: DefaultTerminal, system_state: &SystemState) -> Result<()> {
     terminal.clear()?;
     let mut app = CpuLoadGraph::new();
     let tick_rate = Duration::from_millis(300);
@@ -72,7 +72,7 @@ pub fn run_tui(mut terminal: DefaultTerminal, system_fds: &SystemFds) -> Result<
         }
 
         if app.last_tick.elapsed() >= tick_rate {
-            let load = system_fds.read_cpu_load().unwrap_or(0.0);
+            let load = system_state.cpu_states.read_cpu_load().unwrap_or(0.0);
             app.add_sample(load);
             app.counter += 1;
             app.last_tick = Instant::now();
