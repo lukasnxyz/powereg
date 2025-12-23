@@ -1,18 +1,8 @@
-use crate::{
-    events::{handle_event, EventPoller},
-    setup::{check_running_daemon_mode, install_daemon, uninstall_daemon},
-    system_state::{Config, SystemState},
-    tui::run_tui,
-};
+use crate::events::{handle_event, EventPoller};
+use crate::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
+use crate::system_state::{Config, SystemState};
 use clap::Parser;
-use std::{
-    io,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread,
-};
+use std::io::Write;
 
 mod battery;
 mod cpu;
@@ -20,10 +10,6 @@ mod events;
 mod fds;
 mod setup;
 mod system_state;
-
-mod tui;
-
-const CONFIG_PATH: &str = "~/.config/powereg/config.toml";
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -45,27 +31,30 @@ fn main() {
     let args = Args::parse();
 
     if !unsafe { libc::geteuid() == 0 } {
-        println!("Need to run with root privileges!");
+        eprintln!("Need to run with root privileges!");
         return;
     }
 
     let system_state = SystemState::init().unwrap();
     system_state.post_init().unwrap();
     if !system_state.linux {
-        println!("Need to be running on Linux!");
+        eprintln!("Need to be running on Linux!");
         return;
     }
     println!("{}", system_state);
 
-    match Config::parse(CONFIG_PATH) {
-        Ok(config) => {
-            match config.apply(&system_state) {
+    if let Ok(config_path) = Config::get_config_path() {
+        println!("config path: {config_path}");
+        match Config::parse(&config_path) {
+            Ok(config) => match config.apply(&system_state) {
                 Ok(_) => {}
                 Err(e) => println!("Error while applying config: {e}"),
-            }
-        }
-        Err(e) => eprintln!("Error loading config: {}", e),
-    };
+            },
+            Err(e) => eprintln!("Error loading config: {}", e),
+        };
+    } else {
+        eprintln!("Error loading config");
+    }
 
     if args.monitor {
         //if !check_running_daemon_mode()? {
@@ -73,8 +62,11 @@ fn main() {
         //    return Ok(());
         //}
 
-        let terminal = ratatui::init();
-        let _ = run_tui(terminal, &system_state);
+        loop {
+            println!("{}", system_state.cpu_states);
+            println!("{}", system_state.battery_states);
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
     } else if args.live {
         if check_running_daemon_mode().unwrap() {
             println!("powereg already running in daemon mode!");
@@ -82,25 +74,16 @@ fn main() {
             return;
         }
 
-        let stop_signal = Arc::new(AtomicBool::new(false));
-        let r = stop_signal.clone();
-        let event_handle = thread::spawn(move || -> io::Result<()> {
-            let mut poller = EventPoller::new().unwrap();
-            while !r.load(Ordering::Relaxed) {
-                let event = poller.poll_events();
-                handle_event(&event, &system_state).unwrap();
-            }
-
-            Ok(())
-        });
-
-        let terminal = ratatui::init();
-        let _ = run_tui(terminal, &system_state);
-
-        stop_signal.store(true, Ordering::Relaxed);
-        let _ = event_handle.join();
+        let mut poller = EventPoller::new(5).unwrap();
+        loop {
+            let event = poller.poll_events();
+            handle_event(&event, &system_state).unwrap();
+            print!("\x1B[2J\x1B[1;1H"); // Clear screen and move cursor to top
+            println!("{}", system_state.cpu_states);
+            println!("{}", system_state.battery_states);
+        }
     } else if args.daemon {
-        let mut poller = EventPoller::new().unwrap();
+        let mut poller = EventPoller::new(5).unwrap();
         loop {
             let event = poller.poll_events();
             handle_event(&event, &system_state).unwrap();

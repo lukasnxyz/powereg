@@ -1,15 +1,58 @@
+use crate::battery::ChargingStatus;
 use crate::fds::{PersFd, PersFdError};
-use crate::system_state::ChargingStatus;
-use crate::system_state::{
-    ScalingGoverner, BALANCE_PERFORMANCE, BALANCE_POWER, DEFAULT, EPP, PERFORMANCE, POWER,
-    POWERSAVE,
-};
 use std::cell::RefCell;
 use std::fmt;
 use std::io;
 use std::num;
 use std::thread;
 use std::time::Duration;
+
+const POWERSAVE: &str = "powersave";
+const POWER: &str = "power";
+const BALANCE_POWER: &str = "balance_power";
+const PERFORMANCE: &str = "performance";
+const BALANCE_PERFORMANCE: &str = "balance_performance";
+const DEFAULT: &str = "default";
+
+#[derive(PartialEq, Debug)]
+pub enum ScalingGoverner {
+    Powersave,
+    Performance,
+    Unknown,
+}
+
+impl ScalingGoverner {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            PERFORMANCE => Self::Performance,
+            POWERSAVE => Self::Powersave,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug)]
+pub enum EPP {
+    EDefault,
+    Performance,
+    BalancePerformance,
+    BalancePower,
+    Power,
+    Unknown,
+}
+
+impl EPP {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            DEFAULT => EPP::EDefault,
+            PERFORMANCE => EPP::Performance,
+            BALANCE_PERFORMANCE => EPP::BalancePerformance,
+            BALANCE_POWER => EPP::BalancePower,
+            POWER => EPP::Power,
+            _ => EPP::Unknown,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum CpuStatesError {
@@ -73,7 +116,7 @@ impl fmt::Display for CpuStates {
         min/max cpu freq: {:.2}-{:.2} GHz
         cpu freq: {:.2} GHz
         cpu temp: {} C
-        cpu load: {:?}%
+        cpu load: {:.2}%
         cpu power draw: {:.2} W",
             self.read_scaling_governer().unwrap(),
             self.read_epp().unwrap(),

@@ -1,10 +1,32 @@
 use crate::fds::{PersFd, PersFdError};
-use crate::system_state::ChargingStatus;
 use std::cell::RefCell;
 use std::fmt;
 use std::fs;
 use std::num;
 use std::path::Path;
+
+const CHARGING: &str = "Charging";
+const DISCHARGING: &str = "Discharging";
+const NOTCHARGING: &str = "Not charging";
+
+#[derive(PartialEq, Debug)]
+pub enum ChargingStatus {
+    Charging,
+    DisCharging,
+    NotCharging,
+    Unknown,
+}
+
+impl ChargingStatus {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            CHARGING => Self::Charging,
+            DISCHARGING => Self::DisCharging,
+            NOTCHARGING => Self::NotCharging,
+            _ => Self::Unknown,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum BatteryStatesError {
@@ -50,8 +72,8 @@ impl fmt::Display for BatteryStates {
         battery capacity: {}%
         charge start threshold: {}
         charge stop threshold: {}
-        total power draw: {} W",
-            self.read_battery_charging_status().unwrap(),
+        total power draw: {:.2} W",
+            self.read_charging_status().unwrap(),
             self.read_battery_capacity().unwrap(),
             self.read_charge_start_threshold().unwrap(),
             self.read_charge_stop_threshold().unwrap(),
@@ -104,7 +126,7 @@ impl BatteryStates {
         Ok(RefCell::new(PersFd::new("", false)?))
     }
 
-    pub fn read_battery_charging_status(&self) -> Result<ChargingStatus, BatteryStatesError> {
+    pub fn read_charging_status(&self) -> Result<ChargingStatus, BatteryStatesError> {
         Ok(ChargingStatus::from_string(
             &self.battery_charging_status.borrow_mut().read_value()?,
         ))

@@ -36,7 +36,7 @@ pub struct EventPoller {
 }
 
 impl EventPoller {
-    pub fn new() -> io::Result<Self> {
+    pub fn new(interval_duration_s: u8) -> io::Result<Self> {
         let socket = MonitorBuilder::new()?
             .match_subsystem("power_supply")?
             .listen()?;
@@ -44,7 +44,7 @@ impl EventPoller {
         Ok(Self {
             socket,
             last_periodic_check: Instant::now(),
-            periodic_interval: Duration::from_secs(5),
+            periodic_interval: Duration::from_secs(interval_duration_s.into()),
         })
     }
 
@@ -124,10 +124,6 @@ pub fn handle_event(event: &Event, system_state: &SystemState) -> Result<(), Sys
 
     //LowBattery,
     //FullBattery,
-
-    // TODO: if printing fails, don't crash
-    println!("{}", system_state.cpu_states);
-    println!("{}", system_state.battery_states);
 
     Ok(())
 }

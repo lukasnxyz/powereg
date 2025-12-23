@@ -1,81 +1,11 @@
-use crate::{
-    battery::{BatteryStates, BatteryStatesError},
-    cpu::{CpuStates, CpuStatesError},
-};
+use crate::battery::{BatteryStates, BatteryStatesError, ChargingStatus};
+use crate::cpu::{CpuStates, CpuStatesError, ScalingGoverner, EPP};
 use serde::Deserialize;
+use std::env;
 use std::fmt;
 use std::fs;
-use std::path::Path;
 use std::io::{self, Error, ErrorKind};
-
-pub const POWERSAVE: &str = "powersave";
-pub const POWER: &str = "power";
-pub const BALANCE_POWER: &str = "balance_power";
-pub const PERFORMANCE: &str = "performance";
-pub const BALANCE_PERFORMANCE: &str = "balance_performance";
-pub const CHARGING: &str = "Charging";
-pub const DISCHARGING: &str = "Discharging";
-pub const NOTCHARGING: &str = "Not charging";
-pub const DEFAULT: &str = "default";
-
-#[derive(PartialEq, Debug)]
-pub enum ScalingGoverner {
-    Powersave,
-    Performance,
-    Unknown,
-}
-
-impl ScalingGoverner {
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            PERFORMANCE => Self::Performance,
-            POWERSAVE => Self::Powersave,
-            _ => Self::Unknown,
-        }
-    }
-}
-
-#[derive(PartialEq, Debug)]
-pub enum EPP {
-    EDefault,
-    Performance,
-    BalancePerformance,
-    BalancePower,
-    Power,
-    Unknown,
-}
-
-impl EPP {
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            DEFAULT => EPP::EDefault,
-            PERFORMANCE => EPP::Performance,
-            BALANCE_PERFORMANCE => EPP::BalancePerformance,
-            BALANCE_POWER => EPP::BalancePower,
-            POWER => EPP::Power,
-            _ => EPP::Unknown,
-        }
-    }
-}
-
-#[derive(PartialEq, Debug)]
-pub enum ChargingStatus {
-    Charging,
-    DisCharging,
-    NotCharging,
-    Unknown,
-}
-
-impl ChargingStatus {
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            CHARGING => Self::Charging,
-            DISCHARGING => Self::DisCharging,
-            NOTCHARGING => Self::NotCharging,
-            _ => Self::Unknown,
-        }
-    }
-}
+use std::path::Path;
 
 #[derive(Deserialize)]
 struct ConfigFile {
@@ -136,6 +66,12 @@ impl Config {
         }
 
         Ok(())
+    }
+
+    pub fn get_config_path() -> Result<String, env::VarError> {
+        let home = env::var("HOME")?;
+        //Ok(format!("{}/.config/powereg/config.toml", home))
+        Ok("/home/ln/.config/powereg/config.toml".to_string())
     }
 }
 
@@ -224,7 +160,7 @@ impl SystemState {
     }
 
     pub fn post_init(&self) -> Result<(), SystemStateError> {
-        match self.battery_states.read_battery_charging_status()? {
+        match self.battery_states.read_charging_status()? {
             ChargingStatus::Charging => self.set_performance_mode(),
             ChargingStatus::DisCharging => self.set_powersave_mode(),
             ChargingStatus::NotCharging => self.set_performance_mode(),
@@ -240,7 +176,7 @@ impl SystemState {
     }
 
     pub fn set_performance_mode(&self) -> Result<(), SystemStateError> {
-        if self.battery_states.read_battery_charging_status()? == ChargingStatus::DisCharging {
+        if self.battery_states.read_charging_status()? == ChargingStatus::DisCharging {
             return Ok(());
         }
 
