@@ -17,6 +17,7 @@ a power management tool in rust bc rust is cool
 - [ ] only support amd for now check
 - [ ] cpu turbo boost control?
 - [ ] Event loop better and proper events
+- [ ] Tests
 - [X] TUI displaying all information
 - [ ] `sudo powereg --status`
 - [ ] Proper `README.md`
