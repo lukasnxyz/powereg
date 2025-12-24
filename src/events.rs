@@ -101,6 +101,7 @@ impl EventPoller {
     }
 }
 
+// TODO: Test this for all diff types of events
 pub fn handle_event(event: &Event, system_state: &SystemState) -> Result<(), SystemStateError> {
     match event {
         Event::PowerInPlug => {
