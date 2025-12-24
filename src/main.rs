@@ -4,13 +4,6 @@ use crate::system_state::{Config, SystemState};
 use clap::Parser;
 use std::io::Write;
 
-mod battery;
-mod cpu;
-mod events;
-mod fds;
-mod setup;
-mod system_state;
-
 #[derive(Parser, Debug)]
 #[command(version, about)]
 #[group(id = "mode", required = true, multiple = false)]

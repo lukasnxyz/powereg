@@ -1,3 +1,4 @@
+use crate::utils::StyledString;
 use std::{io, process::Command};
 
 const SERVICE_NAME: &str = "powereg";
@@ -20,14 +21,7 @@ pub fn check_running_daemon_mode() -> io::Result<bool> {
 }
 
 pub fn install_daemon() -> io::Result<()> {
-    if check_installed_power_tools() {
-        println!("Make sure that you are not running any other power management tools such as");
-        println!("\tpower-profiles-daemon\ttlp\tauto-cpufreq");
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "Failed to start powereg",
-        ));
-    }
+    let _ = check_installed_power_tools();
 
     let service_file = format!(
         r#"[Unit]
@@ -62,7 +56,7 @@ WantedBy=multi-user.target
     std::fs::write(SERVICE_PATH, service_file).map_err(|e| {
         io::Error::new(
             e.kind(),
-            format!("Failed to write service file to {}: {}", SERVICE_PATH, e),
+            format!("{} {}: {}", "Failed to write service file to".red(), SERVICE_PATH, e),
         )
     })?;
 
@@ -72,91 +66,96 @@ WantedBy=multi-user.target
         .map_err(|e| {
             io::Error::new(
                 e.kind(),
-                format!("Failed to run 'systemctl daemon-reload': {}", e),
+                format!("{} {}", "Failed to run 'systemctl daemon-reload':".red(), e),
             )
         })?;
     if !output.status.success() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
             format!(
-                "systemctl daemon-reload failed: {}",
-                String::from_utf8_lossy(&output.stderr)
+                "{} {}",
+                "systemctl daemon-reload failed:".red(),
+                String::from_utf8_lossy(&output.stderr),
             ),
         ));
     }
 
-    println!("enabling daemon");
+    println!("Enabling daemon");
     let output = Command::new("systemctl")
         .args(&["enable", SERVICE_NAME])
         .output()
         .map_err(|e| {
-            io::Error::new(e.kind(), format!("Failed to run 'systemctl enable': {}", e))
+            io::Error::new(e.kind(), format!("{} {}", "Failed to run 'systemctl enable':".red(), e))
         })?;
     if !output.status.success() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
             format!(
-                "systemctl enable failed: {}",
-                String::from_utf8_lossy(&output.stderr)
+                "{} {}",
+                "systemctl enable failed:".red(),
+                String::from_utf8_lossy(&output.stderr),
             ),
         ));
     }
 
-    println!("starting daemon");
+    println!("Starting daemon");
     let output = Command::new("systemctl")
         .args(&["start", SERVICE_NAME])
         .output()
-        .map_err(|e| io::Error::new(e.kind(), format!("Failed to run 'systemctl start': {}", e)))?;
+        .map_err(|e| io::Error::new(e.kind(), format!("{} {}", "Failed to run 'systemctl start':".red(), e)))?;
     if !output.status.success() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
             format!(
-                "systemctl start failed: {}",
-                String::from_utf8_lossy(&output.stderr)
+                "{} {}",
+                "systemctl start failed:".red(),
+                String::from_utf8_lossy(&output.stderr),
             ),
         ));
     }
 
-    println!("powereg succesfully installed and started via systemd!");
+    println!("{}", "Powereg succesfully installed and started via systemd!".green());
 
     Ok(())
 }
 
 pub fn uninstall_daemon() -> io::Result<()> {
-    println!("disabling daemon");
+    println!("Disabling daemon");
     let output = Command::new("systemctl")
         .args(&["disable", SERVICE_NAME])
         .output()
         .map_err(|e| {
             io::Error::new(
                 e.kind(),
-                format!("Failed to run 'systemctl disable': {}", e),
+                format!("{} {}", "Failed to run 'systemctl disable':".red(), e),
             )
         })?;
     if !output.status.success() {
         eprintln!(
-            "Warning: systemctl disable failed: {}",
-            String::from_utf8_lossy(&output.stderr)
+            "{} {}",
+            "systemctl disable failed:".red(),
+            String::from_utf8_lossy(&output.stderr),
         );
     }
 
-    println!("stop daemon");
+    println!("Stop daemon");
     let output = Command::new("systemctl")
         .args(&["stop", SERVICE_NAME])
         .output()
-        .map_err(|e| io::Error::new(e.kind(), format!("Failed to run 'systemctl stop': {}", e)))?;
+        .map_err(|e| io::Error::new(e.kind(), format!("{} {}", "Failed to run 'systemctl stop':".red(), e)))?;
     if !output.status.success() {
         eprintln!(
-            "Warning: systemctl stop failed: {}",
-            String::from_utf8_lossy(&output.stderr)
+            "{} {}",
+            "systemctl stop failed:".red(),
+            String::from_utf8_lossy(&output.stderr),
         );
     }
 
-    println!("uninstalling daemon");
+    println!("Uninstalling daemon");
     std::fs::remove_file(SERVICE_PATH).map_err(|e| {
         io::Error::new(
             e.kind(),
-            format!("Failed to remove service file at {}: {}", SERVICE_PATH, e),
+            format!("{} {}: {}", "Failed to remove service file at".red(), SERVICE_PATH, e),
         )
     })?;
 
@@ -166,28 +165,81 @@ pub fn uninstall_daemon() -> io::Result<()> {
         .map_err(|e| {
             io::Error::new(
                 e.kind(),
-                format!("Failed to run 'systemctl daemon-reload': {}", e),
+                format!("{} {}", "Failed to run 'systemctl daemon-reload':".red(), e),
             )
         })?;
     if !output.status.success() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
             format!(
-                "systemctl daemon-reload failed: {}",
-                String::from_utf8_lossy(&output.stderr)
+                "{} {}",
+                "systemctl daemon-reload failed:".red(),
+                String::from_utf8_lossy(&output.stderr),
             ),
         ));
     }
 
-    println!("powereg uninstalled successfully!");
+    println!("{}", "Powereg uninstalled successfully!".green());
 
     Ok(())
 }
 
 fn check_installed_power_tools() -> bool {
-    // TODO: make sure power-profilesdaemon is not running
-    // TODO: make tlp is not running
-    // TODO: make sure auto-cpufreq is not running
+    let services = vec![
+        "power-profiles-daemon.service",
+        "tlp.service",
+        "auto-cpufreq.service",
+    ];
 
-    false
+    let mut conflicts_found = false;
+
+    for service in services {
+        let status = Command::new("systemctl")
+            .args(&["is-active", service])
+            .output();
+
+        if let Ok(output) = status {
+            let status_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+            if status_str == "active" {
+                println!("{} {}", "Found running service:".yellow(), service);
+                conflicts_found = true;
+
+                println!("\t{} {}...", "Attempting to stop".yellow(), service);
+                let stop_result = Command::new("systemctl")
+                    .args(&["stop", service])
+                    .output();
+
+                match stop_result {
+                    Ok(output) if output.status.success() => {
+                        println!("\t{} {}", "Successfully stopped".green(), service);
+                    }
+                    _ => {
+                        println!("\t{} {}", "Failed to stop".red(), service);
+                        continue;
+                    }
+                }
+
+                println!("\t{} {}...", "Attempting to disable".yellow(), service);
+                let disable_result = Command::new("systemctl")
+                    .args(&["disable", service])
+                    .output();
+
+                match disable_result {
+                    Ok(output) if output.status.success() => {
+                        println!("\t{} {}", "Successfully disabled".green(), service);
+                    }
+                    _ => {
+                        println!("\t{} {}", "Failed to disable".red(), service);
+                    }
+                }
+            }
+        }
+    }
+
+    if !conflicts_found {
+        println!("{}", "No conflicting power management services found".green());
+    }
+
+    conflicts_found
 }

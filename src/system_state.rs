@@ -49,7 +49,7 @@ impl Config {
     pub fn apply(&self, system_state: &SystemState) -> Result<(), SystemStateError> {
         if system_state.acpi_type != ACPIType::ThinkPad {
             return Err(SystemStateError::ACPITypeErr(
-                "only thinkpad acpi supported now".to_string(),
+                "only thinkpad acpi supported for now".to_string(),
             ));
         }
 
@@ -85,7 +85,7 @@ enum CpuType {
 #[derive(Debug, PartialEq)]
 enum ACPIType {
     ThinkPad,
-    IdeaPad,
+    //IdeaPad,
     Unknown,
 }
 
@@ -295,6 +295,30 @@ impl SystemState {
     }
 
     fn detect_acpi_type() -> ACPIType {
-        return ACPIType::ThinkPad;
+        if let Ok(product_version) = fs::read_to_string("/sys/class/dmi/id/product_version") {
+            let product_version = product_version.trim().to_lowercase();
+            if product_version.contains("thinkpad") {
+                return ACPIType::ThinkPad;
+            }
+            //if product_version.contains("ideapad") {
+            //    return ACPIType::IdeaPad;
+            //}
+        }
+
+        if let Ok(product_name) = fs::read_to_string("/sys/class/dmi/id/product_name") {
+            let product_name = product_name.trim().to_lowercase();
+            if product_name.contains("thinkpad") {
+                return ACPIType::ThinkPad;
+            }
+            //if product_name.contains("ideapad") {
+            //    return ACPIType::IdeaPad;
+            //}
+        }
+
+        if Path::new("/proc/acpi/ibm").exists() {
+            return ACPIType::ThinkPad;
+        }
+
+        ACPIType::Unknown
     }
 }

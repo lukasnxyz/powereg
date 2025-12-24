@@ -118,14 +118,15 @@ impl fmt::Display for CpuStates {
         cpu temp: {} C
         cpu load: {:.2}%
         cpu power draw: {:.2} W",
-            self.read_scaling_governer().unwrap(),
-            self.read_epp().unwrap(),
-            self.read_min_cpu_freq().unwrap(),
-            self.read_max_cpu_freq().unwrap(),
-            self.read_avg_cpu_freq().unwrap(),
-            self.read_cpu_temp().unwrap(),
-            self.read_cpu_load().unwrap(),
-            self.read_cpu_power_draw().unwrap(),
+            self.read_scaling_governer()
+                .unwrap_or(ScalingGoverner::Unknown),
+            self.read_epp().unwrap_or(EPP::Unknown),
+            self.read_min_cpu_freq().unwrap_or(0.0),
+            self.read_max_cpu_freq().unwrap_or(0.0),
+            self.read_avg_cpu_freq().unwrap_or(0.0),
+            self.read_cpu_temp().unwrap_or(0),
+            self.read_cpu_load().unwrap_or(0.0),
+            self.read_cpu_power_draw().unwrap_or(0.0),
         )
     }
 }

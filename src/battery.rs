@@ -73,11 +73,12 @@ impl fmt::Display for BatteryStates {
         charge start threshold: {}
         charge stop threshold: {}
         total power draw: {:.2} W",
-            self.read_charging_status().unwrap(),
-            self.read_battery_capacity().unwrap(),
-            self.read_charge_start_threshold().unwrap(),
-            self.read_charge_stop_threshold().unwrap(),
-            self.read_total_power_draw().unwrap(),
+            self.read_charging_status()
+                .unwrap_or(ChargingStatus::Unknown),
+            self.read_battery_capacity().unwrap_or(0),
+            self.read_charge_start_threshold().unwrap_or(0),
+            self.read_charge_stop_threshold().unwrap_or(0),
+            self.read_total_power_draw().unwrap_or(0.0),
         )
     }
 }
