@@ -1,4 +1,4 @@
-use crate::battery::ChargingStatus;
+use crate::battery::{BatteryStates, ChargingStatus};
 use crate::fds::{PersFd, PersFdError};
 use std::cell::RefCell;
 use std::fmt;
@@ -147,12 +147,10 @@ impl CpuStates {
             false,
         )?;
 
-        let battery_charging_status =
-            RefCell::new(PersFd::new("/sys/class/power_supply/BAT0/status", false)?);
+        let battery_charging_status = BatteryStates::load_charging_status().unwrap();
         let c_status =
             ChargingStatus::from_string(&battery_charging_status.borrow_mut().read_value()?);
-        if c_status == ChargingStatus::Charging {
-            //|| c_status == ChargingStatus::NotCharging {
+        if c_status == ChargingStatus::Charging || c_status == ChargingStatus::Unknown {
             assert_eq!(
                 available_epps.read_value()?,
                 "performance",

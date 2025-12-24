@@ -1,8 +1,8 @@
+use clap::Parser;
 use powereg::events::{handle_event, EventPoller};
 use powereg::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
 use powereg::system_state::{Config, SystemState};
 use powereg::utils::StyledString;
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -58,10 +58,10 @@ fn main() {
 
         let mut poller = EventPoller::new(3).unwrap();
         loop {
-            let _ = poller.poll_events();
             print!("\x1B[2J\x1B[1;1H");
             println!("{}", system_state.cpu_states);
             println!("{}", system_state.battery_states);
+            let _ = poller.poll_events();
         }
     } else if args.live {
         if check_running_daemon_mode().unwrap() {
@@ -72,11 +72,11 @@ fn main() {
 
         let mut poller = EventPoller::new(5).unwrap();
         loop {
-            let event = poller.poll_events();
-            handle_event(&event, &system_state).unwrap();
             print!("\x1B[2J\x1B[1;1H");
             println!("{}", system_state.cpu_states);
             println!("{}", system_state.battery_states);
+            let event = poller.poll_events();
+            handle_event(&event, &system_state).unwrap();
         }
     } else if args.daemon {
         let mut poller = EventPoller::new(5).unwrap();

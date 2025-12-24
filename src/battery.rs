@@ -104,7 +104,7 @@ impl BatteryStates {
         })
     }
 
-    fn load_charging_status() -> Result<RefCell<PersFd>, BatteryStatesError> {
+    pub fn load_charging_status() -> Result<RefCell<PersFd>, BatteryStatesError> {
         let power_supply_path = Path::new("/sys/class/power_supply");
         if let Ok(entries) = fs::read_dir(power_supply_path) {
             for entry in entries.flatten() {

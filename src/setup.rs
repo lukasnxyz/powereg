@@ -57,7 +57,12 @@ WantedBy=multi-user.target
     std::fs::write(SERVICE_PATH, service_file).map_err(|e| {
         io::Error::new(
             e.kind(),
-            format!("{} {}: {}", "Failed to write service file to".red(), SERVICE_PATH, e),
+            format!(
+                "{} {}: {}",
+                "Failed to write service file to".red(),
+                SERVICE_PATH,
+                e
+            ),
         )
     })?;
 
@@ -87,7 +92,10 @@ WantedBy=multi-user.target
         .args(&["enable", SERVICE_NAME])
         .output()
         .map_err(|e| {
-            io::Error::new(e.kind(), format!("{} {}", "Failed to run 'systemctl enable':".red(), e))
+            io::Error::new(
+                e.kind(),
+                format!("{} {}", "Failed to run 'systemctl enable':".red(), e),
+            )
         })?;
     if !output.status.success() {
         return Err(io::Error::new(
@@ -104,7 +112,12 @@ WantedBy=multi-user.target
     let output = Command::new("systemctl")
         .args(&["start", SERVICE_NAME])
         .output()
-        .map_err(|e| io::Error::new(e.kind(), format!("{} {}", "Failed to run 'systemctl start':".red(), e)))?;
+        .map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!("{} {}", "Failed to run 'systemctl start':".red(), e),
+            )
+        })?;
     if !output.status.success() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
@@ -116,7 +129,10 @@ WantedBy=multi-user.target
         ));
     }
 
-    println!("{}", "Powereg succesfully installed and started via systemd!".green());
+    println!(
+        "{}",
+        "Powereg succesfully installed and started via systemd!".green()
+    );
 
     Ok(())
 }
@@ -144,7 +160,12 @@ pub fn uninstall_daemon() -> io::Result<()> {
     let output = Command::new("systemctl")
         .args(&["stop", SERVICE_NAME])
         .output()
-        .map_err(|e| io::Error::new(e.kind(), format!("{} {}", "Failed to run 'systemctl stop':".red(), e)))?;
+        .map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!("{} {}", "Failed to run 'systemctl stop':".red(), e),
+            )
+        })?;
     if !output.status.success() {
         eprintln!(
             "{} {}",
@@ -156,7 +177,12 @@ pub fn uninstall_daemon() -> io::Result<()> {
     std::fs::remove_file(SERVICE_PATH).map_err(|e| {
         io::Error::new(
             e.kind(),
-            format!("{} {}: {}", "Failed to remove service file at".red(), SERVICE_PATH, e),
+            format!(
+                "{} {}: {}",
+                "Failed to remove service file at".red(),
+                SERVICE_PATH,
+                e
+            ),
         )
     })?;
 
@@ -208,9 +234,7 @@ fn check_installed_power_tools() -> bool {
                 conflicts_found = true;
 
                 println!("\t{} {}...", "Attempting to stop".yellow(), service);
-                let stop_result = Command::new("systemctl")
-                    .args(&["stop", service])
-                    .output();
+                let stop_result = Command::new("systemctl").args(&["stop", service]).output();
 
                 match stop_result {
                     Ok(output) if output.status.success() => {
@@ -240,7 +264,10 @@ fn check_installed_power_tools() -> bool {
     }
 
     if !conflicts_found {
-        println!("{}", "No conflicting power management services found".green());
+        println!(
+            "{}",
+            "No conflicting power management services found".green()
+        );
     }
 
     conflicts_found

@@ -15,5 +15,8 @@ a power management tool in rust bc rust is cool
 - [X] Non fatal errors shouldn't crash
 - [X] Thinkpad ACPI check only for now
 - [ ] only support amd for now check
+- [ ] cpu turbo boost control?
 - [ ] Event loop better and proper events
 - [X] TUI displaying all information
+- [ ] `sudo powereg --status`
+- [ ] Proper `README.md`
