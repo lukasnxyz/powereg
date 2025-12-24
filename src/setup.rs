@@ -7,6 +7,7 @@ const BINARY_PATH: &str = "/usr/local/bin/powereg";
 const RUN_FLAG: &str = "--daemon";
 
 pub fn check_running_daemon_mode() -> io::Result<bool> {
+    println!("{}", "Running 'systemctl is-active powereg'".yellow());
     let output = std::process::Command::new("systemctl")
         .args(&["is-active", SERVICE_NAME])
         .output()
@@ -60,6 +61,7 @@ WantedBy=multi-user.target
         )
     })?;
 
+    println!("{}", "Running 'systemctl daemon-reload'".yellow());
     let output = Command::new("systemctl")
         .arg("daemon-reload")
         .output()
@@ -80,7 +82,7 @@ WantedBy=multi-user.target
         ));
     }
 
-    println!("Enabling daemon");
+    println!("{}", "Running 'systemctl enable powereg'".yellow());
     let output = Command::new("systemctl")
         .args(&["enable", SERVICE_NAME])
         .output()
@@ -98,7 +100,7 @@ WantedBy=multi-user.target
         ));
     }
 
-    println!("Starting daemon");
+    println!("{}", "Running 'systemctl start powereg'".yellow());
     let output = Command::new("systemctl")
         .args(&["start", SERVICE_NAME])
         .output()
@@ -120,7 +122,7 @@ WantedBy=multi-user.target
 }
 
 pub fn uninstall_daemon() -> io::Result<()> {
-    println!("Disabling daemon");
+    println!("{}", "Running 'systemctl disable powereg'".yellow());
     let output = Command::new("systemctl")
         .args(&["disable", SERVICE_NAME])
         .output()
@@ -138,7 +140,7 @@ pub fn uninstall_daemon() -> io::Result<()> {
         );
     }
 
-    println!("Stop daemon");
+    println!("{}", "Running 'systemctl stop powereg'".yellow());
     let output = Command::new("systemctl")
         .args(&["stop", SERVICE_NAME])
         .output()
@@ -151,7 +153,6 @@ pub fn uninstall_daemon() -> io::Result<()> {
         );
     }
 
-    println!("Uninstalling daemon");
     std::fs::remove_file(SERVICE_PATH).map_err(|e| {
         io::Error::new(
             e.kind(),
@@ -159,6 +160,7 @@ pub fn uninstall_daemon() -> io::Result<()> {
         )
     })?;
 
+    println!("{}", "Running 'systemctl daemon-reload'".yellow());
     let output = Command::new("systemctl")
         .arg("daemon-reload")
         .output()

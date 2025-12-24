@@ -110,12 +110,12 @@ impl fmt::Display for CpuStates {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "CpuStates
+            "CPU:
         scaling governer: {:?}
         epp: {:?}
         min/max cpu freq: {:.2}-{:.2} GHz
         cpu freq: {:.2} GHz
-        cpu temp: {} C
+        cpu temp: {}°C
         cpu load: {:.2}%
         cpu power draw: {:.2} W",
             self.read_scaling_governer()
@@ -151,7 +151,8 @@ impl CpuStates {
             RefCell::new(PersFd::new("/sys/class/power_supply/BAT0/status", false)?);
         let c_status =
             ChargingStatus::from_string(&battery_charging_status.borrow_mut().read_value()?);
-        if c_status == ChargingStatus::Charging || c_status == ChargingStatus::NotCharging {
+        if c_status == ChargingStatus::Charging {
+            //|| c_status == ChargingStatus::NotCharging {
             assert_eq!(
                 available_epps.read_value()?,
                 "performance",

@@ -163,7 +163,7 @@ impl SystemState {
         match self.battery_states.read_charging_status()? {
             ChargingStatus::Charging => self.set_performance_mode(),
             ChargingStatus::DisCharging => self.set_powersave_mode(),
-            ChargingStatus::NotCharging => self.set_performance_mode(),
+            //ChargingStatus::NotCharging => self.set_performance_mode(),
             ChargingStatus::Unknown => self.set_powersave_mode(),
         }
     }

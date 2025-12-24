@@ -1,6 +1,7 @@
 use powereg::events::{handle_event, EventPoller};
 use powereg::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
 use powereg::system_state::{Config, SystemState};
+use powereg::utils::StyledString;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -23,46 +24,49 @@ fn main() {
     let args = Args::parse();
 
     if !unsafe { libc::geteuid() == 0 } {
-        eprintln!("Need to run with root privileges!");
+        eprintln!("{}", "Need to run with root privileges!".red());
         return;
     }
 
     let system_state = SystemState::init().unwrap();
     system_state.post_init().unwrap();
     if !system_state.linux {
-        eprintln!("Need to be running on Linux!");
+        eprintln!("{}", "Need to be running on Linux!".red());
         return;
     }
-    println!("{}", system_state);
+    //println!("{}", system_state);
 
     if let Ok(config_path) = Config::get_config_path() {
         println!("config path: {config_path}");
         match Config::parse(&config_path) {
             Ok(config) => match config.apply(&system_state) {
                 Ok(_) => {}
-                Err(e) => println!("Error while applying config: {e}"),
+                Err(e) => println!("{} {}", "Error while applying config:".red(), e),
             },
-            Err(e) => eprintln!("Error loading config: {}", e),
+            Err(e) => eprintln!("{} {}", "Error loading config:".red(), e),
         };
     } else {
-        eprintln!("Error loading config");
+        eprintln!("{}", "Error loading config".red());
     }
 
     if args.monitor {
-        //if !check_running_daemon_mode()? {
-        //    println!("start powereg daemon mode with sudo powereg --daemon!");
-        //    return Ok(());
-        //}
+        if !check_running_daemon_mode().unwrap() {
+            println!("{}", "powereg not running in daemon mode!".red());
+            println!("{}", "\tuse 'sudo powereg --install'".red());
+            return;
+        }
 
+        let mut poller = EventPoller::new(3).unwrap();
         loop {
+            let _ = poller.poll_events();
+            print!("\x1B[2J\x1B[1;1H");
             println!("{}", system_state.cpu_states);
             println!("{}", system_state.battery_states);
-            std::thread::sleep(std::time::Duration::from_millis(500));
         }
     } else if args.live {
         if check_running_daemon_mode().unwrap() {
-            println!("powereg already running in daemon mode!");
-            println!("\tuse powereg --monitor");
+            println!("{}", "powereg already running in daemon mode!".red());
+            println!("{}", "\tuse 'sudo powereg --monitor'".red());
             return;
         }
 
@@ -70,7 +74,7 @@ fn main() {
         loop {
             let event = poller.poll_events();
             handle_event(&event, &system_state).unwrap();
-            print!("\x1B[2J\x1B[1;1H"); // Clear screen and move cursor to top
+            print!("\x1B[2J\x1B[1;1H");
             println!("{}", system_state.cpu_states);
             println!("{}", system_state.battery_states);
         }

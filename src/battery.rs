@@ -5,15 +5,14 @@ use std::fs;
 use std::num;
 use std::path::Path;
 
-const CHARGING: &str = "Charging";
-const DISCHARGING: &str = "Discharging";
-const NOTCHARGING: &str = "Not charging";
+const CHARGING: &str = "1";
+const DISCHARGING: &str = "0";
 
 #[derive(PartialEq, Debug)]
 pub enum ChargingStatus {
     Charging,
     DisCharging,
-    NotCharging,
+    //NotCharging,
     Unknown,
 }
 
@@ -22,7 +21,6 @@ impl ChargingStatus {
         match s {
             CHARGING => Self::Charging,
             DISCHARGING => Self::DisCharging,
-            NOTCHARGING => Self::NotCharging,
             _ => Self::Unknown,
         }
     }
@@ -67,11 +65,11 @@ impl fmt::Display for BatteryStates {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "BatteryStates:
+            "Battery:
         charging status: {:?}
         battery capacity: {}%
-        charge start threshold: {}
-        charge stop threshold: {}
+        charge start threshold: {}%
+        charge stop threshold: {}%
         total power draw: {:.2} W",
             self.read_charging_status()
                 .unwrap_or(ChargingStatus::Unknown),
