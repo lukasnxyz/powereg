@@ -1,8 +1,7 @@
-use crate::events::{handle_event, EventPoller};
-use crate::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
-use crate::system_state::{Config, SystemState};
+use powereg::events::{handle_event, EventPoller};
+use powereg::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
+use powereg::system_state::{Config, SystemState};
 use clap::Parser;
-use std::io::Write;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
