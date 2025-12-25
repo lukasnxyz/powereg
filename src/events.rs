@@ -6,9 +6,6 @@ use std::{
 };
 use udev::MonitorBuilder;
 
-// TODO: more events:
-//      low battery (< 20%)
-//      high cpu temp
 pub enum Event {
     PowerInPlug,
     PowerUnPlug,
@@ -99,32 +96,33 @@ impl EventPoller {
 
         Event::Unknown
     }
-}
 
-// TODO: Test this for all diff types of events
-pub fn handle_event(event: &Event, system_state: &SystemState) -> Result<(), SystemStateError> {
-    match event {
-        Event::PowerInPlug => {
-            println!("event: {}", event);
-            system_state.set_performance_mode()?;
+    // TODO: Test this for all diff types of events
+    pub fn handle_event(event: &Event, system_state: &SystemState) -> Result<(), SystemStateError> {
+        match event {
+            Event::PowerInPlug => {
+                println!("event: {}", event);
+                system_state.set_performance_mode()?;
+            }
+            Event::PowerUnPlug => {
+                println!("event: {}", event);
+                system_state.set_powersave_mode()?;
+            }
+            Event::PeriodicCheck => {
+                // LOW BATTERY
+                if system_state.low_battery_level()? {
+                    system_state.set_powersave_mode()?;
+                    return Ok(());
+                }
+
+                // HIGH CPU TEMPERATURE
+                //if system_state.high_cpu_temp()? {
+                //}
+            }
+            Event::Unknown => {}
+            Event::Error(_) => {}
         }
-        Event::PowerUnPlug => {
-            println!("event: {}", event);
-            system_state.set_powersave_mode()?;
-        }
-        Event::PeriodicCheck => {
-            //check_battery_level(system_fds)?;
-            //check_cpu_temperature(system_fds)?;
-        }
-        Event::Unknown => {}
-        Event::Error(_) => {}
+
+        Ok(())
     }
-
-    //IncCPULoad,
-    //DropCPULoad,
-
-    //LowBattery,
-    //FullBattery,
-
-    Ok(())
 }

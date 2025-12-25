@@ -1,5 +1,5 @@
 use clap::Parser;
-use powereg::events::{handle_event, EventPoller};
+use powereg::events::EventPoller;
 use powereg::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
 use powereg::system_state::{Config, CpuType, SystemState};
 use powereg::utils::StyledString;
@@ -82,7 +82,7 @@ fn main() {
             println!("{}", system_state.cpu_states);
             println!("{}", system_state.battery_states);
             let event = poller.poll_events();
-            handle_event(&event, &system_state).unwrap();
+            EventPoller::handle_event(&event, &system_state).unwrap();
         }
     } else if args.daemon {
         if check_running_daemon_mode().unwrap() {
@@ -93,7 +93,7 @@ fn main() {
         let mut poller = EventPoller::new(5).unwrap();
         loop {
             let event = poller.poll_events();
-            handle_event(&event, &system_state).unwrap();
+            EventPoller::handle_event(&event, &system_state).unwrap();
         }
     } else if args.install {
         if check_running_daemon_mode().unwrap() {

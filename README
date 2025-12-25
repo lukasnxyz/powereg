@@ -1,14 +1,22 @@
-powereg
+Powereg
+=======
 
 Getting started
-- cargo build --release && sudo cp target/release/powereg /usr/local/bin/
-- sudo powereg --install
+---------------
+./install.sh
+sudo powereg --install
 
-Credits
-- Heavily inspired by [auto-cpufreq](https://github.com/AdnanHodzic/auto-cpufreq), I
-    just wanted a power management tool in rust bc rust is cool
+Options
+--------
+Powereg will need to be run with sudo
+- '--monitor': simply display your system states while powereg runs as a daemon in the background.
+- '--live': runs powereg in the background while showing your system states.
+- '--daemon': runs powereg with no feedback.
+- '--install': install powereg via 'systemctl enable' and 'systemctl start'.
+- '--uninstall': uninstalls powereg via 'systemctl disable' and 'systemctl stop'.
 
 TODO to v1
+----------
 - [X] Separate CPU and battery configs
 - [X] Non fatal errors shouldn't crash
 - [X] Thinkpad ACPI check only for now
@@ -17,5 +25,13 @@ TODO to v1
 - [ ] Event loop better and proper events
 - [ ] Tests
 - [X] TUI displaying all information
-- [X] `sudo powereg --status`
-- [X] Proper `README`
+- [X] 'sudo powereg --status'
+- [ ] Proper `README`
+
+License
+-------
+- MIT License (./LICENSE)
+
+Credits
+-------
+- Inspired by auto-cpufreq (https://github.com/AdnanHodzic/auto-cpufreq).

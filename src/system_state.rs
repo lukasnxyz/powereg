@@ -186,6 +186,26 @@ impl SystemState {
         Ok(())
     }
 
+    pub fn low_battery_level(&self) -> Result<bool, SystemStateError> {
+        let battery_level = self.battery_states.read_battery_capacity()?;
+        // TODO: make this 20% a configurable threshold in the powereg/config.toml
+        if battery_level <= 20 {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn high_cpu_temp(&self) -> Result<bool, SystemStateError> {
+        let cpu_temp = self.cpu_states.read_cpu_temp()?;
+        // TODO: make this temp a configurable threshold in the powereg/config.toml
+        if cpu_temp >= 80 {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     fn detect_linux() -> bool {
         #[cfg(target_os = "linux")]
         let compile_time = true;
