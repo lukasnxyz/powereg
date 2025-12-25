@@ -118,16 +118,16 @@ impl EventPoller {
             (State::Balanced, Event::PowerInPlug) => State::Performance,
             (State::Balanced, Event::PowerUnPlug) => State::Powersave,
             (State::Balanced, Event::LowBattery) => State::Powersave,
-            (State::Balanced, Event::HighCpuTemp) => old_state,
-            (State::Balanced, Event::HighCpuLoad) => old_state,
+            //(State::Balanced, Event::HighCpuTemp) => old_state,
+            //(State::Balanced, Event::HighCpuLoad) => old_state,
 
             (State::Powersave, Event::PowerInPlug) => State::Performance,
-            (State::Powersave, Event::PowerUnPlug) => old_state,
-            (State::Powersave, Event::LowBattery) => old_state,
-            (State::Powersave, Event::HighCpuTemp) => old_state,
-            (State::Powersave, Event::HighCpuLoad) => old_state,
+            //(State::Powersave, Event::PowerUnPlug) => old_state,
+            //(State::Powersave, Event::LowBattery) => old_state,
+            //(State::Powersave, Event::HighCpuTemp) => old_state,
+            //(State::Powersave, Event::HighCpuLoad) => old_state,
 
-            (State::Performance, Event::PowerInPlug) => old_state,
+            //(State::Performance, Event::PowerInPlug) => old_state,
             (State::Performance, Event::PowerUnPlug) => State::Powersave,
             (State::Performance, Event::LowBattery) => State::Powersave,
             (State::Performance, Event::HighCpuTemp) => State::Balanced,
@@ -173,21 +173,9 @@ impl EventPoller {
     pub fn handle_event(event: Event, system_state: &SystemState) -> Result<(), SystemStateError> {
         let mut event = event;
         match event {
-            Event::PowerInPlug => {}
-            Event::PowerUnPlug => {}
-
             Event::PeriodicCheck => event = Self::periodic_check(&system_state)?,
-
-            Event::LowBattery => {}
-            Event::HighCpuTemp => {}
-            Event::HighCpuLoad => {}
-            Event::LowCpuLoad => {}
-
-            Event::Unknown => {}
-            Event::Error(_) => {}
+            _ => {}
         }
-
-        //println!("event: {}", &event);
 
         Self::state_transition(&event, &system_state);
         match *system_state.state.borrow() {
