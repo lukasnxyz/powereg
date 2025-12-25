@@ -241,7 +241,7 @@ impl CpuStates {
             _ => return Err(CpuStatesError::InvalidScalingGovVal),
         };
 
-        println!("Setting cpu performance preference to: {}", write);
+        //println!("Setting cpu performance preference to: {}", write);
 
         for fd in &self.scaling_governer {
             fd.borrow_mut().set_value(write)?;
@@ -272,7 +272,7 @@ impl CpuStates {
             _ => return Err(CpuStatesError::InvalidEPPVal),
         };
 
-        println!("Setting CPU epp to: {}", write);
+        //println!("Setting CPU epp to: {}", write);
 
         for fd in &self.epp {
             fd.borrow_mut().set_value(write)?;

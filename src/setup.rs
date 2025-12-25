@@ -8,7 +8,7 @@ const RUN_FLAG: &str = "--daemon";
 
 pub fn check_running_daemon_mode() -> io::Result<bool> {
     println!("{}", "Running 'systemctl is-active powereg'".yellow());
-    let output = std::process::Command::new("systemctl")
+    let output = Command::new("systemctl")
         .args(&["is-active", SERVICE_NAME])
         .output()
         .map_err(|e| {
@@ -18,7 +18,14 @@ pub fn check_running_daemon_mode() -> io::Result<bool> {
             )
         })?;
 
-    Ok(output.status.success())
+    let status_text = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .to_lowercase();
+    match status_text.as_str() {
+        "active" => Ok(true),
+        "inactive" => Ok(false),
+        _ => Ok(false),
+    }
 }
 
 pub fn install_daemon() -> io::Result<()> {

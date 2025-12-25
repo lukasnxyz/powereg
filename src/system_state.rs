@@ -1,6 +1,7 @@
 use crate::battery::{BatteryStates, BatteryStatesError, ChargingStatus};
 use crate::cpu::{CpuStates, CpuStatesError, ScalingGoverner, EPP};
 use serde::Deserialize;
+use std::cell::RefCell;
 use std::env;
 use std::fmt;
 use std::fs;
@@ -126,6 +127,13 @@ impl From<io::Error> for SystemStateError {
     }
 }
 
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum State {
+    Powersave,
+    Balanced,
+    Performance,
+}
+
 pub struct SystemState {
     pub linux: bool,
     pub cpu_type: CpuType,
@@ -134,14 +142,20 @@ pub struct SystemState {
 
     pub cpu_states: CpuStates,
     pub battery_states: BatteryStates,
+
+    pub state: RefCell<State>,
 }
 
 impl fmt::Display for SystemState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tcpu core count: {}",
-            self.linux, self.cpu_type, self.acpi_type, self.num_cpu_cores,
+            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tcpu core count: {}\n\tstate: {:?}",
+            self.linux,
+            self.cpu_type,
+            self.acpi_type,
+            self.num_cpu_cores,
+            *self.state.borrow(),
         )
     }
 }
@@ -156,6 +170,7 @@ impl SystemState {
             num_cpu_cores,
             cpu_states: CpuStates::init(num_cpu_cores)?,
             battery_states: BatteryStates::init()?,
+            state: RefCell::new(State::Balanced),
         })
     }
 
@@ -170,7 +185,20 @@ impl SystemState {
     pub fn set_powersave_mode(&self) -> Result<(), SystemStateError> {
         self.cpu_states
             .set_scaling_governer(ScalingGoverner::Powersave)?;
+
         self.cpu_states.set_epp(EPP::BalancePower)?;
+
+        Ok(())
+    }
+
+    pub fn set_balanced_mode(&self) -> Result<(), SystemStateError> {
+        self.cpu_states
+            .set_scaling_governer(ScalingGoverner::Powersave)?;
+
+        if self.battery_states.read_charging_status()? != ChargingStatus::Charging {
+            self.cpu_states.set_epp(EPP::BalancePower)?;
+        }
+
         Ok(())
     }
 
@@ -181,29 +209,10 @@ impl SystemState {
 
         self.cpu_states
             .set_scaling_governer(ScalingGoverner::Performance)?;
+
         self.cpu_states.set_epp(EPP::Performance)?;
 
         Ok(())
-    }
-
-    pub fn low_battery_level(&self) -> Result<bool, SystemStateError> {
-        let battery_level = self.battery_states.read_battery_capacity()?;
-        // TODO: make this 20% a configurable threshold in the powereg/config.toml
-        if battery_level <= 20 {
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    pub fn high_cpu_temp(&self) -> Result<bool, SystemStateError> {
-        let cpu_temp = self.cpu_states.read_cpu_temp()?;
-        // TODO: make this temp a configurable threshold in the powereg/config.toml
-        if cpu_temp >= 80 {
-            Ok(true)
-        } else {
-            Ok(false)
-        }
     }
 
     fn detect_linux() -> bool {

@@ -1,4 +1,4 @@
-use crate::system_state::{SystemState, SystemStateError};
+use crate::system_state::{State, SystemState, SystemStateError};
 use std::{
     fmt, io,
     os::unix::io::AsRawFd,
@@ -9,7 +9,14 @@ use udev::MonitorBuilder;
 pub enum Event {
     PowerInPlug,
     PowerUnPlug,
+
     PeriodicCheck,
+
+    LowBattery,
+    HighCpuTemp,
+    HighCpuLoad,
+    LowCpuLoad,
+
     Unknown,
     Error(String),
 }
@@ -19,9 +26,16 @@ impl fmt::Display for Event {
         match self {
             Event::PowerInPlug => write!(f, "power plugged in"),
             Event::PowerUnPlug => write!(f, "power un plugged"),
+
+            Event::PeriodicCheck => write!(f, "periodic check"),
+
+            Event::LowBattery => write!(f, "low battery"),
+            Event::HighCpuTemp => write!(f, "high cpu temp"),
+            Event::HighCpuLoad => write!(f, "high cpu load"),
+            Event::LowCpuLoad => write!(f, "low cpu load"),
+
             Event::Unknown => write!(f, "unknown event occured"),
             Event::Error(err) => write!(f, "an error occured: {}", err),
-            Event::PeriodicCheck => write!(f, "periodic check"),
         }
     }
 }
@@ -97,30 +111,89 @@ impl EventPoller {
         Event::Unknown
     }
 
-    // TODO: Test this for all diff types of events
-    pub fn handle_event(event: &Event, system_state: &SystemState) -> Result<(), SystemStateError> {
-        match event {
-            Event::PowerInPlug => {
-                println!("event: {}", event);
-                system_state.set_performance_mode()?;
-            }
-            Event::PowerUnPlug => {
-                println!("event: {}", event);
-                system_state.set_powersave_mode()?;
-            }
-            Event::PeriodicCheck => {
-                // LOW BATTERY
-                if system_state.low_battery_level()? {
-                    system_state.set_powersave_mode()?;
-                    return Ok(());
-                }
+    fn state_transition(event: &Event, system_state: &SystemState) {
+        let old_state = system_state.state.clone().into_inner();
 
-                // HIGH CPU TEMPERATURE
-                //if system_state.high_cpu_temp()? {
-                //}
-            }
+        *system_state.state.borrow_mut() = match (old_state, event) {
+            (State::Balanced, Event::PowerInPlug) => State::Performance,
+            (State::Balanced, Event::PowerUnPlug) => State::Powersave,
+            (State::Balanced, Event::LowBattery) => State::Powersave,
+            (State::Balanced, Event::HighCpuTemp) => old_state,
+            (State::Balanced, Event::HighCpuLoad) => old_state,
+
+            (State::Powersave, Event::PowerInPlug) => State::Performance,
+            (State::Powersave, Event::PowerUnPlug) => old_state,
+            (State::Powersave, Event::LowBattery) => old_state,
+            (State::Powersave, Event::HighCpuTemp) => old_state,
+            (State::Powersave, Event::HighCpuLoad) => old_state,
+
+            (State::Performance, Event::PowerInPlug) => old_state,
+            (State::Performance, Event::PowerUnPlug) => State::Powersave,
+            (State::Performance, Event::LowBattery) => State::Powersave,
+            (State::Performance, Event::HighCpuTemp) => State::Balanced,
+            (State::Performance, Event::HighCpuLoad) => State::Balanced,
+
+            _ => old_state,
+        };
+
+        //println!("State transition: {:?} -> {:?} (Event: {})",
+        //    old_state, system_state.state, event);
+    }
+
+    fn periodic_check(system_state: &SystemState) -> Result<Event, SystemStateError> {
+        let low_battery_level = if system_state.battery_states.read_battery_capacity()? <= 20 {
+            true
+        } else {
+            false
+        };
+
+        let high_cpu_temp = if system_state.cpu_states.read_cpu_temp()? >= 80 {
+            true
+        } else {
+            false
+        };
+
+        let high_cpu_load = if system_state.cpu_states.read_cpu_load()? >= 65.0 {
+            true
+        } else {
+            false
+        };
+
+        let event = if low_battery_level {
+            Event::LowBattery
+        } else if !low_battery_level && (high_cpu_temp || high_cpu_load) {
+            Event::HighCpuLoad
+        } else {
+            Event::Unknown
+        };
+
+        Ok(event)
+    }
+
+    pub fn handle_event(event: Event, system_state: &SystemState) -> Result<(), SystemStateError> {
+        let mut event = event;
+        match event {
+            Event::PowerInPlug => {}
+            Event::PowerUnPlug => {}
+
+            Event::PeriodicCheck => event = Self::periodic_check(&system_state)?,
+
+            Event::LowBattery => {}
+            Event::HighCpuTemp => {}
+            Event::HighCpuLoad => {}
+            Event::LowCpuLoad => {}
+
             Event::Unknown => {}
             Event::Error(_) => {}
+        }
+
+        //println!("event: {}", &event);
+
+        Self::state_transition(&event, &system_state);
+        match *system_state.state.borrow() {
+            State::Powersave => system_state.set_powersave_mode()?,
+            State::Balanced => system_state.set_balanced_mode()?,
+            State::Performance => system_state.set_performance_mode()?,
         }
 
         Ok(())

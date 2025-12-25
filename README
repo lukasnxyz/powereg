@@ -22,11 +22,11 @@ TODO to v1
 - [X] Thinkpad ACPI check only for now
 - [X] only support amd for now check
 - [ ] cpu turbo boost control?
-- [ ] Event loop better and proper events
+- [X] Event loop better and proper events
 - [ ] Tests
 - [X] TUI displaying all information
 - [X] 'sudo powereg --status'
-- [ ] Proper `README`
+- [X] Proper `README`
 
 License
 -------

@@ -82,18 +82,13 @@ fn main() {
             println!("{}", system_state.cpu_states);
             println!("{}", system_state.battery_states);
             let event = poller.poll_events();
-            EventPoller::handle_event(&event, &system_state).unwrap();
+            EventPoller::handle_event(event, &system_state).unwrap();
         }
     } else if args.daemon {
-        if check_running_daemon_mode().unwrap() {
-            println!("{}", "Powereg already running in daemon mode!".red());
-            return;
-        }
-
-        let mut poller = EventPoller::new(5).unwrap();
+        let mut poller = EventPoller::new(LOOP_DURATION).unwrap();
         loop {
             let event = poller.poll_events();
-            EventPoller::handle_event(&event, &system_state).unwrap();
+            EventPoller::handle_event(event, &system_state).unwrap();
         }
     } else if args.install {
         if check_running_daemon_mode().unwrap() {
