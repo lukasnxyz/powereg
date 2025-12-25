@@ -1,8 +1,10 @@
 Powereg
 =======
+A simple power management tool that controls the cpus power profile, EPP, as well as battery thresholds for ThinkPads.
 
 Getting started
 ---------------
+For AMD cpus, make sure that '/sys/devices/system/cpu/amd_pstate/status' is set to active
 ./install.sh
 sudo powereg --install
 

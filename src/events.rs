@@ -120,7 +120,6 @@ impl EventPoller {
             (State::Balanced, Event::LowBattery) => State::Powersave,
             //(State::Balanced, Event::HighCpuTemp) => old_state,
             //(State::Balanced, Event::HighCpuLoad) => old_state,
-
             (State::Powersave, Event::PowerInPlug) => State::Performance,
             //(State::Powersave, Event::PowerUnPlug) => old_state,
             //(State::Powersave, Event::LowBattery) => old_state,
