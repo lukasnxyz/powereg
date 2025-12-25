@@ -19,7 +19,7 @@ impl fmt::Display for PersFdError {
 
 pub struct PersFd {
     file: File,
-    path: String,
+    //path: String,
 }
 
 impl PersFd {
@@ -32,7 +32,7 @@ impl PersFd {
 
         Ok(PersFd {
             file,
-            path: path.to_string(),
+            //path: path.to_string(),
         })
     }
 

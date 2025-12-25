@@ -55,12 +55,14 @@ impl Config {
         }
 
         if let Some(start_thresh) = self.charge_start_threshold {
+            println!("Setting charge start threshold to {}", start_thresh);
             system_state
                 .battery_states
                 .set_charge_start_threshold(start_thresh.into())?;
         }
 
         if let Some(stop_thresh) = self.charge_stop_threshold {
+            println!("Setting charge stop threshold to {}", stop_thresh);
             system_state
                 .battery_states
                 .set_charge_stop_threshold(stop_thresh.into())?;
@@ -70,13 +72,16 @@ impl Config {
     }
 
     pub fn get_config_path() -> Result<String, env::VarError> {
-        let home = env::var("HOME")?;
-        //Ok(format!("{}/.config/powereg/config.toml", home))
-        Ok("/home/ln/.config/powereg/config.toml".to_string())
+        if let Ok(sudo_user) = env::var("SUDO_USER") {
+            Ok(format!("/home/{}/.config/powereg/config.toml", sudo_user))
+        } else {
+            let home = env::var("HOME")?;
+            Ok(format!("{}/.config/powereg/config.toml", home))
+        }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum CpuType {
     AMD,
     Intel,
@@ -138,7 +143,6 @@ pub struct SystemState {
     pub linux: bool,
     pub cpu_type: CpuType,
     acpi_type: ACPIType,
-    pub num_cpu_cores: usize,
 
     pub cpu_states: CpuStates,
     pub battery_states: BatteryStates,
@@ -150,11 +154,10 @@ impl fmt::Display for SystemState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tcpu core count: {}\n\tstate: {:?}",
+            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tstate: {:?}",
             self.linux,
             self.cpu_type,
             self.acpi_type,
-            self.num_cpu_cores,
             *self.state.borrow(),
         )
     }
@@ -163,13 +166,16 @@ impl fmt::Display for SystemState {
 impl SystemState {
     pub fn init() -> Result<Self, SystemStateError> {
         let num_cpu_cores = Self::num_cpu_cores()?;
+        let cpu_type = Self::detect_cpu_type();
+        let cpu_states = CpuStates::init(num_cpu_cores, &cpu_type)?;
         Ok(Self {
             linux: Self::detect_linux(),
-            cpu_type: Self::detect_cpu_type(),
+            cpu_type,
             acpi_type: Self::detect_acpi_type(),
-            num_cpu_cores,
-            cpu_states: CpuStates::init(num_cpu_cores)?,
+
+            cpu_states,
             battery_states: BatteryStates::init()?,
+
             state: RefCell::new(State::Powersave),
         })
     }

@@ -5,8 +5,11 @@ A simple power management tool that controls the cpus power profile, EPP, as wel
 Getting started
 ---------------
 For AMD cpus, make sure that '/sys/devices/system/cpu/amd_pstate/status' is set to active
+
 ./install.sh
 sudo powereg --install
+
+You can configure powereg via '~/.config/powereg/config.toml'.
 
 Options
 --------
@@ -16,12 +19,6 @@ Powereg will need to be run with sudo
 - '--daemon': runs powereg with no feedback.
 - '--install': install powereg via 'systemctl enable' and 'systemctl start'.
 - '--uninstall': uninstalls powereg via 'systemctl disable' and 'systemctl stop'.
-
-TODO to v1
-----------
-- [ ] cpu turbo boost control
-- [ ] Tests
-- [ ] Fix config path error with home dir and root dir
 
 License
 -------

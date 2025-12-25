@@ -1,5 +1,6 @@
 use crate::battery::{BatteryStates, ChargingStatus};
 use crate::fds::{PersFd, PersFdError};
+use crate::system_state::CpuType;
 use std::cell::RefCell;
 use std::fmt;
 use std::io;
@@ -95,6 +96,8 @@ impl From<io::Error> for CpuStatesError {
 
 pub struct CpuStates {
     cpu_core_count: usize,
+    cpu_type: CpuType,
+
     scaling_governer: Vec<RefCell<PersFd>>,
     epp: Vec<RefCell<PersFd>>,
     min_cpu_freq: Vec<RefCell<PersFd>>,
@@ -103,7 +106,7 @@ pub struct CpuStates {
     cpu_temp: RefCell<PersFd>,
     cpu_load: RefCell<PersFd>, // TODO: possibly wrong
     cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
-                                     // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
+                               // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
 }
 
 impl fmt::Display for CpuStates {
@@ -111,6 +114,7 @@ impl fmt::Display for CpuStates {
         write!(
             f,
             "CPU:
+        cpu type: {:?}
         scaling governer: {:?}
         epp: {:?}
         min/max cpu freq: {:.2}-{:.2} GHz
@@ -118,6 +122,7 @@ impl fmt::Display for CpuStates {
         cpu temp: {}°C
         cpu load: {:.2}%
         cpu power draw: {:.2} W",
+            self.cpu_type,
             self.read_scaling_governer()
                 .unwrap_or(ScalingGoverner::Unknown),
             self.read_epp().unwrap_or(EPP::Unknown),
@@ -132,7 +137,7 @@ impl fmt::Display for CpuStates {
 }
 
 impl CpuStates {
-    pub fn init(n: usize) -> Result<Self, CpuStatesError> {
+    pub fn init(n: usize, cpu_type: &CpuType) -> Result<Self, CpuStatesError> {
         let mut available_scaling_governers = PersFd::new(
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors",
             false,
@@ -200,6 +205,8 @@ impl CpuStates {
 
         Ok(Self {
             cpu_core_count: n,
+            cpu_type: cpu_type.clone(),
+
             scaling_governer,
             epp,
             cpu_freq,
@@ -213,6 +220,9 @@ impl CpuStates {
             )?),
         })
     }
+
+    //fn init_amd() -> Self {}
+    //fn init_intel() -> Self {}
 
     pub fn read_scaling_governer(&self) -> Result<ScalingGoverner, CpuStatesError> {
         let gov =
