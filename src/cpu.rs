@@ -101,7 +101,7 @@ pub struct CpuStates {
     max_cpu_freq: Vec<RefCell<PersFd>>,
     cpu_freq: Vec<RefCell<PersFd>>,
     cpu_temp: RefCell<PersFd>,
-    cpu_load: RefCell<PersFd>,
+    cpu_load: RefCell<PersFd>, // TODO: possibly wrong
     cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
                                      // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
 }

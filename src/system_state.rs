@@ -170,7 +170,7 @@ impl SystemState {
             num_cpu_cores,
             cpu_states: CpuStates::init(num_cpu_cores)?,
             battery_states: BatteryStates::init()?,
-            state: RefCell::new(State::Balanced),
+            state: RefCell::new(State::Powersave),
         })
     }
 
@@ -186,7 +186,7 @@ impl SystemState {
         self.cpu_states
             .set_scaling_governer(ScalingGoverner::Powersave)?;
 
-        self.cpu_states.set_epp(EPP::BalancePower)?;
+        self.cpu_states.set_epp(EPP::Power)?;
 
         Ok(())
     }
