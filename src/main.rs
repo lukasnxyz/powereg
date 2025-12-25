@@ -1,8 +1,10 @@
 use clap::Parser;
 use powereg::events::{handle_event, EventPoller};
 use powereg::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
-use powereg::system_state::{Config, SystemState};
+use powereg::system_state::{Config, CpuType, SystemState};
 use powereg::utils::StyledString;
+
+const LOOP_DURATION: u8 = 3;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -14,6 +16,7 @@ struct Args {
     pub live: bool,
     #[arg(long, help = "Run powereg daemon mode")]
     pub daemon: bool,
+
     #[arg(long, help = "Install powereg as a daemon on your system")]
     pub install: bool,
     #[arg(long, help = "Uninstall powereg on your system")]
@@ -34,10 +37,13 @@ fn main() {
         eprintln!("{}", "Need to be running on Linux!".red());
         return;
     }
-    //println!("{}", system_state);
+    if system_state.cpu_type != CpuType::AMD {
+        eprintln!("{}", "Currently only supporting AMD cpus!".red());
+        return;
+    }
 
     if let Ok(config_path) = Config::get_config_path() {
-        println!("config path: {config_path}");
+        println!("Config path: {config_path}");
         match Config::parse(&config_path) {
             Ok(config) => match config.apply(&system_state) {
                 Ok(_) => {}
@@ -56,7 +62,7 @@ fn main() {
             return;
         }
 
-        let mut poller = EventPoller::new(3).unwrap();
+        let mut poller = EventPoller::new(LOOP_DURATION).unwrap();
         loop {
             print!("\x1B[2J\x1B[1;1H");
             println!("{}", system_state.cpu_states);
@@ -65,12 +71,12 @@ fn main() {
         }
     } else if args.live {
         if check_running_daemon_mode().unwrap() {
-            println!("{}", "powereg already running in daemon mode!".red());
+            println!("{}", "Powereg already running in daemon mode!".red());
             println!("{}", "\tuse 'sudo powereg --monitor'".red());
             return;
         }
 
-        let mut poller = EventPoller::new(5).unwrap();
+        let mut poller = EventPoller::new(LOOP_DURATION).unwrap();
         loop {
             print!("\x1B[2J\x1B[1;1H");
             println!("{}", system_state.cpu_states);
@@ -79,14 +85,29 @@ fn main() {
             handle_event(&event, &system_state).unwrap();
         }
     } else if args.daemon {
+        if check_running_daemon_mode().unwrap() {
+            println!("{}", "Powereg already running in daemon mode!".red());
+            return;
+        }
+
         let mut poller = EventPoller::new(5).unwrap();
         loop {
             let event = poller.poll_events();
             handle_event(&event, &system_state).unwrap();
         }
     } else if args.install {
+        if check_running_daemon_mode().unwrap() {
+            println!("{}", "Powereg already running in daemon mode!".red());
+            return;
+        }
+
         install_daemon().unwrap();
     } else if args.uninstall {
+        if !check_running_daemon_mode().unwrap() {
+            println!("{}", "Powereg is not running in daemon mode!".red());
+            return;
+        }
+
         uninstall_daemon().unwrap();
     }
 }

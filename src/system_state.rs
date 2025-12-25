@@ -75,8 +75,8 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
-enum CpuType {
+#[derive(Debug, PartialEq)]
+pub enum CpuType {
     AMD,
     Intel,
     Unknown,
@@ -128,7 +128,7 @@ impl From<io::Error> for SystemStateError {
 
 pub struct SystemState {
     pub linux: bool,
-    cpu_type: CpuType,
+    pub cpu_type: CpuType,
     acpi_type: ACPIType,
     pub num_cpu_cores: usize,
 
@@ -163,7 +163,6 @@ impl SystemState {
         match self.battery_states.read_charging_status()? {
             ChargingStatus::Charging => self.set_performance_mode(),
             ChargingStatus::DisCharging => self.set_powersave_mode(),
-            //ChargingStatus::NotCharging => self.set_performance_mode(),
             ChargingStatus::Unknown => self.set_powersave_mode(),
         }
     }

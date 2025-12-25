@@ -12,7 +12,6 @@ const DISCHARGING: &str = "0";
 pub enum ChargingStatus {
     Charging,
     DisCharging,
-    //NotCharging,
     Unknown,
 }
 
