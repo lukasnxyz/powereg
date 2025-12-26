@@ -61,7 +61,6 @@ impl PersFd {
 
 #[allow(dead_code)]
 pub trait StyledString {
-    fn black(&self) -> String;
     fn red(&self) -> String;
     fn green(&self) -> String;
     fn yellow(&self) -> String;
@@ -76,10 +75,6 @@ pub trait StyledString {
 }
 
 impl StyledString for str {
-    fn black(&self) -> String {
-        format!("\x1b[30m{}\x1b[0m", self)
-    }
-
     fn red(&self) -> String {
         format!("\x1b[31m{}\x1b[0m", self)
     }
