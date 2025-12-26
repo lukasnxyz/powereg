@@ -65,8 +65,7 @@ fn main() {
         let mut poller = EventPoller::new(LOOP_DURATION).unwrap();
         loop {
             print!("\x1B[2J\x1B[1;1H");
-            println!("{}", system_state.cpu_states);
-            println!("{}", system_state.battery_states);
+            println!("{}", system_state);
             let _ = poller.poll_events();
         }
     } else if args.live {
@@ -79,8 +78,7 @@ fn main() {
         let mut poller = EventPoller::new(LOOP_DURATION).unwrap();
         loop {
             print!("\x1B[2J\x1B[1;1H");
-            println!("{}", system_state.cpu_states);
-            println!("{}", system_state.battery_states);
+            println!("{}", system_state);
             let event = poller.poll_events();
             EventPoller::handle_event(event, &system_state).unwrap();
         }

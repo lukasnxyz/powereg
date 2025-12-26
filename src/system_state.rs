@@ -154,11 +154,10 @@ impl fmt::Display for SystemState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "system state:\n\trunning linux: {}\n\tcpu type: {:?}\n\tacpi type: {:?}\n\tstate: {:?}",
-            self.linux,
-            self.cpu_type,
-            self.acpi_type,
+            "System state: {:?}\n{}\n{}",
             *self.state.borrow(),
+            self.cpu_states,
+            self.battery_states,
         )
     }
 }
