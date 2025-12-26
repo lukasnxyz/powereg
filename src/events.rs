@@ -119,13 +119,12 @@ impl EventPoller {
         *system_state.state.borrow_mut() = match (old_state, event) {
             (_, Event::PowerInPlug) => State::Performance,
             (_, Event::PowerUnPlug) => State::Powersave,
-
             (_, Event::LowBattery) => State::Powersave,
+
+            (State::Balanced, Event::LoadNormalized) => State::Performance,
 
             (State::Performance, Event::HighCpuTemp) => State::Balanced,
             (State::Performance, Event::HighCpuLoad) => State::Balanced,
-
-            (State::Balanced, Event::LoadNormalized) => State::Performance,
 
             _ => old_state,
         };
