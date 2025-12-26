@@ -111,7 +111,8 @@ impl fmt::Display for BatteryStates {
             self.read_charge_start_threshold().unwrap_or(0),
             self.read_charge_stop_threshold().unwrap_or(0),
             self.read_total_power_draw().unwrap_or(0.0),
-            self.read_platform_profile().unwrap_or(PlatformProfile::Unknown),
+            self.read_platform_profile()
+                .unwrap_or(PlatformProfile::Unknown),
         )
     }
 }
@@ -136,10 +137,9 @@ impl BatteryStates {
                 "/sys/class/power_supply/BAT0/power_now",
                 false,
             )?),
-            platform_profile: RefCell::new(PersFd::new(
-                "/sys/firmware/acpi/platform_profile",
-                true,
-            ).unwrap()),
+            platform_profile: RefCell::new(
+                PersFd::new("/sys/firmware/acpi/platform_profile", true).unwrap(),
+            ),
         })
     }
 

@@ -194,7 +194,10 @@ impl SystemState {
 
         self.cpu_states.set_epp(EPP::Power)?;
 
-        self.battery_states.set_platform_profile(&PlatformProfile::LowPower)?;
+        self.battery_states
+            .set_platform_profile(&PlatformProfile::LowPower)?;
+
+        self.cpu_states.set_cpu_turbo_boost(0)?;
 
         Ok(())
     }
@@ -206,15 +209,19 @@ impl SystemState {
 
             self.cpu_states.set_epp(EPP::Power)?;
 
-            self.battery_states.set_platform_profile(&PlatformProfile::LowPower)?;
+            self.battery_states
+                .set_platform_profile(&PlatformProfile::LowPower)?;
         } else {
             self.cpu_states
                 .set_scaling_governer(ScalingGoverner::Performance)?;
 
             self.cpu_states.set_epp(EPP::BalancePower)?;
 
-            self.battery_states.set_platform_profile(&PlatformProfile::Balanced)?;
+            self.battery_states
+                .set_platform_profile(&PlatformProfile::Balanced)?;
         }
+
+        self.cpu_states.set_cpu_turbo_boost(0)?;
 
         Ok(())
     }
@@ -229,7 +236,10 @@ impl SystemState {
 
         self.cpu_states.set_epp(EPP::Performance)?;
 
-        self.battery_states.set_platform_profile(&PlatformProfile::Performance)?;
+        self.battery_states
+            .set_platform_profile(&PlatformProfile::Performance)?;
+
+        self.cpu_states.set_cpu_turbo_boost(1)?;
 
         Ok(())
     }

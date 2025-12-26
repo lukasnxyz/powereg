@@ -100,13 +100,20 @@ pub struct CpuStates {
 
     scaling_governer: Vec<RefCell<PersFd>>,
     epp: Vec<RefCell<PersFd>>,
+    cpu_turbo_boost: RefCell<PersFd>,
     min_cpu_freq: Vec<RefCell<PersFd>>,
     max_cpu_freq: Vec<RefCell<PersFd>>,
     cpu_freq: Vec<RefCell<PersFd>>,
     cpu_temp: RefCell<PersFd>,
     cpu_load: RefCell<PersFd>, // TODO: possibly wrong
     cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
-                               // TODO: /sys/devices/system/cpu/cpufreq/boost (0, 1)
+
+                               // for amd:
+                               //      /sys/devices/system/cpu/cpufreq/boost
+                               //      (1 turbo is enabled)
+                               // for intel:
+                               //      /sys/devices/system/cpu/intel_pstate/no_turbo
+                               //      (0 turbo is enabled)
 }
 
 impl fmt::Display for CpuStates {
@@ -209,6 +216,10 @@ impl CpuStates {
 
             scaling_governer,
             epp,
+            cpu_turbo_boost: RefCell::new(PersFd::new(
+                "/sys/devices/system/cpu/cpufreq/boost",
+                true,
+            )?),
             cpu_freq,
             min_cpu_freq,
             max_cpu_freq,
@@ -288,6 +299,22 @@ impl CpuStates {
             fd.borrow_mut().set_value(write)?;
         }
 
+        Ok(())
+    }
+
+    pub fn read_cpu_turbo_boost(&self) -> Result<u8, CpuStatesError> {
+        let val = self
+            .cpu_turbo_boost
+            .borrow_mut()
+            .read_value()?
+            .parse::<u8>()?;
+        Ok(val)
+    }
+
+    pub fn set_cpu_turbo_boost(&self, boost: u8) -> Result<(), CpuStatesError> {
+        self.cpu_turbo_boost
+            .borrow_mut()
+            .set_value(&boost.to_string())?;
         Ok(())
     }
 
