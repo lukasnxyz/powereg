@@ -1,4 +1,7 @@
-use crate::system_state::{State, SystemState, SystemStateError};
+use crate::{
+    battery::ChargingStatus,
+    system_state::{State, SystemState, SystemStateError},
+};
 use std::{
     fmt, io,
     os::unix::io::AsRawFd,
@@ -15,7 +18,7 @@ pub enum Event {
     LowBattery,
     HighCpuTemp,
     HighCpuLoad,
-    LowCpuLoad,
+    LoadNormalized,
 
     Unknown,
     Error(String),
@@ -32,7 +35,7 @@ impl fmt::Display for Event {
             Event::LowBattery => write!(f, "low battery"),
             Event::HighCpuTemp => write!(f, "high cpu temp"),
             Event::HighCpuLoad => write!(f, "high cpu load"),
-            Event::LowCpuLoad => write!(f, "low cpu load"),
+            Event::LoadNormalized => write!(f, "load normalized"),
 
             Event::Unknown => write!(f, "unknown event occured"),
             Event::Error(err) => write!(f, "an error occured: {}", err),
@@ -113,57 +116,42 @@ impl EventPoller {
 
     fn state_transition(event: &Event, system_state: &SystemState) {
         let old_state = system_state.state.clone().into_inner();
-
         *system_state.state.borrow_mut() = match (old_state, event) {
-            (State::Balanced, Event::PowerInPlug) => State::Performance,
-            (State::Balanced, Event::PowerUnPlug) => State::Powersave,
-            (State::Balanced, Event::LowBattery) => State::Powersave,
-            //(State::Balanced, Event::HighCpuTemp) => old_state,
-            //(State::Balanced, Event::HighCpuLoad) => old_state,
-            (State::Powersave, Event::PowerInPlug) => State::Performance,
-            //(State::Powersave, Event::PowerUnPlug) => old_state,
-            //(State::Powersave, Event::LowBattery) => old_state,
-            //(State::Powersave, Event::HighCpuTemp) => old_state,
-            //(State::Powersave, Event::HighCpuLoad) => old_state,
+            (_, Event::PowerInPlug) => State::Performance,
+            (_, Event::PowerUnPlug) => State::Powersave,
 
-            //(State::Performance, Event::PowerInPlug) => old_state,
-            (State::Performance, Event::PowerUnPlug) => State::Powersave,
-            (State::Performance, Event::LowBattery) => State::Powersave,
+            (_, Event::LowBattery) => State::Powersave,
+
             (State::Performance, Event::HighCpuTemp) => State::Balanced,
             (State::Performance, Event::HighCpuLoad) => State::Balanced,
 
+            (State::Balanced, Event::LoadNormalized) => State::Performance,
+
             _ => old_state,
         };
-
-        //println!(
-        //    "State transition: {:?} -> {:?} (Event: {})",
-        //    old_state, system_state.state, event
-        //);
     }
 
     fn periodic_check(system_state: &SystemState) -> Result<Event, SystemStateError> {
-        let low_battery_level = if system_state.battery_states.read_battery_capacity()? <= 20 {
-            true
-        } else {
-            false
-        };
+        let low_battery_level = system_state.battery_states.read_battery_capacity()? <= 20;
+        let high_cpu_temp = system_state.cpu_states.read_cpu_temp()? >= 80;
+        let high_cpu_load = system_state.cpu_states.read_cpu_load()? >= 65.0;
+        let is_plugged_in =
+            system_state.battery_states.read_charging_status()? == ChargingStatus::Charging;
 
-        let high_cpu_temp = if system_state.cpu_states.read_cpu_temp()? >= 80 {
-            true
-        } else {
-            false
-        };
-
-        let high_cpu_load = if system_state.cpu_states.read_cpu_load()? >= 65.0 {
-            true
-        } else {
-            false
-        };
+        let current_state = *system_state.state.borrow();
 
         let event = if low_battery_level {
             Event::LowBattery
-        } else if !low_battery_level && (high_cpu_temp || high_cpu_load) {
+        } else if !is_plugged_in
+            && (current_state == State::Performance || current_state == State::Balanced)
+        {
+            Event::PowerUnPlug
+        } else if is_plugged_in && current_state == State::Powersave {
+            Event::PowerInPlug
+        } else if high_cpu_temp || high_cpu_load {
             Event::HighCpuLoad
+        } else if is_plugged_in && current_state == State::Balanced {
+            Event::LoadNormalized
         } else {
             Event::Unknown
         };

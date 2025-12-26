@@ -213,7 +213,7 @@ impl SystemState {
                 .set_platform_profile(&PlatformProfile::LowPower)?;
         } else {
             self.cpu_states
-                .set_scaling_governer(ScalingGoverner::Performance)?;
+                .set_scaling_governer(ScalingGoverner::Powersave)?;
 
             self.cpu_states.set_epp(EPP::BalancePower)?;
 

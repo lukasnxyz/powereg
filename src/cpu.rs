@@ -1,6 +1,6 @@
 use crate::battery::{BatteryStates, ChargingStatus};
-use crate::fds::{PersFd, PersFdError};
 use crate::system_state::CpuType;
+use crate::utils::{PersFd, PersFdError};
 use std::cell::RefCell;
 use std::fmt;
 use std::io;
