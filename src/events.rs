@@ -132,9 +132,9 @@ impl EventPoller {
     }
 
     fn periodic_check(system_state: &SystemState) -> Result<Event, SystemStateError> {
-        let low_battery_level = system_state.battery_states.read_battery_capacity()? <= 20;
-        let high_cpu_temp = system_state.cpu_states.read_cpu_temp()? >= 80;
-        let high_cpu_load = system_state.cpu_states.read_cpu_load()? >= 65.0;
+        let low_battery_level = system_state.battery_states.read_battery_capacity()? <= 25;
+        let high_cpu_temp = system_state.cpu_states.read_cpu_temp()? >= 85;
+        let high_cpu_load = system_state.cpu_states.read_cpu_load()? >= 85.0;
         let is_plugged_in =
             system_state.battery_states.read_charging_status()? == ChargingStatus::Charging;
 
