@@ -154,10 +154,10 @@ impl fmt::Display for SystemState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "System state: {:?}\n{}\n{}",
-            *self.state.borrow(),
+            "{}\n{}\nSystem state: {:?}",
             self.cpu_states,
             self.battery_states,
+            *self.state.borrow(),
         )
     }
 }

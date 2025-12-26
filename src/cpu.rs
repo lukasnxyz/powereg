@@ -103,7 +103,7 @@ pub struct CpuStates {
     cpu_turbo_boost: RefCell<PersFd>,
     min_cpu_freq: Vec<RefCell<PersFd>>,
     max_cpu_freq: Vec<RefCell<PersFd>>,
-    cpu_freq: Vec<RefCell<PersFd>>,
+    cpu_freq: Vec<RefCell<PersFd>>, // TODO: possibly wrong (not same as btop)
     cpu_temp: RefCell<PersFd>,
     cpu_load: RefCell<PersFd>,       // TODO: possibly wrong
     cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
@@ -114,15 +114,15 @@ impl fmt::Display for CpuStates {
         write!(
             f,
             "CPU:
-        cpu type: {:?}
-        scaling governer: {:?}
-        epp: {:?}
-        cpu turbo boost: {}
-        min/max cpu freq: {:.2}-{:.2} GHz
-        cpu freq: {:.2} GHz
-        cpu temp: {}°C
-        cpu load: {:.2}%
-        cpu power draw: {:.2} W",
+    cpu type: {:?}
+    scaling governer: {:?}
+    epp: {:?}
+    cpu turbo boost: {}
+    min/max cpu freq: {:.2}-{:.2} GHz
+    cpu freq: {:.2} GHz
+    cpu temp: {}°C
+    cpu load: {:.2}%
+    cpu power draw: {:.2} W",
             self.cpu_type,
             self.read_scaling_governer()
                 .unwrap_or(ScalingGoverner::Unknown),

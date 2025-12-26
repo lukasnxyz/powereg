@@ -99,12 +99,12 @@ impl fmt::Display for BatteryStates {
         write!(
             f,
             "Battery:
-        charging status: {:?}
-        battery capacity: {}%
-        charge start threshold: {}%
-        charge stop threshold: {}%
-        total power draw: {:.2} W
-        platform profile: {}",
+    charging status: {:?}
+    battery capacity: {}%
+    charge start threshold: {}%
+    charge stop threshold: {}%
+    total power draw: {:.2} W
+    platform profile: {}",
             self.read_charging_status()
                 .unwrap_or(ChargingStatus::Unknown),
             self.read_battery_capacity().unwrap_or(0),
