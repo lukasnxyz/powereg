@@ -21,6 +21,10 @@ Powereg will need to be run with sudo
 - '--install': install powereg via 'systemctl enable' and 'systemctl start'.
 - '--uninstall': uninstalls powereg via 'systemctl disable' and 'systemctl stop'.
 
+Todo
+----
+- [ ] print messages toggle with debug flag (develop a nice macro for this)
+
 License
 -------
 - MIT License (./LICENSE)

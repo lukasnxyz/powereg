@@ -135,10 +135,10 @@ impl EventPoller {
             _ => old_state,
         };
 
-        println!(
-            "State transition: {:?} -> {:?} (Event: {})",
-            old_state, system_state.state, event
-        );
+        //println!(
+        //    "State transition: {:?} -> {:?} (Event: {})",
+        //    old_state, system_state.state, event
+        //);
     }
 
     fn periodic_check(system_state: &SystemState) -> Result<Event, SystemStateError> {
