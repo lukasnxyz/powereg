@@ -105,15 +105,8 @@ pub struct CpuStates {
     max_cpu_freq: Vec<RefCell<PersFd>>,
     cpu_freq: Vec<RefCell<PersFd>>,
     cpu_temp: RefCell<PersFd>,
-    cpu_load: RefCell<PersFd>, // TODO: possibly wrong
+    cpu_load: RefCell<PersFd>,       // TODO: possibly wrong
     cpu_power_draw: RefCell<PersFd>, // TODO: possibly wrong
-
-                               // for amd:
-                               //      /sys/devices/system/cpu/cpufreq/boost
-                               //      (1 turbo is enabled)
-                               // for intel:
-                               //      /sys/devices/system/cpu/intel_pstate/no_turbo
-                               //      (0 turbo is enabled)
 }
 
 impl fmt::Display for CpuStates {
@@ -124,6 +117,7 @@ impl fmt::Display for CpuStates {
         cpu type: {:?}
         scaling governer: {:?}
         epp: {:?}
+        cpu turbo boost: {}
         min/max cpu freq: {:.2}-{:.2} GHz
         cpu freq: {:.2} GHz
         cpu temp: {}°C
@@ -133,6 +127,7 @@ impl fmt::Display for CpuStates {
             self.read_scaling_governer()
                 .unwrap_or(ScalingGoverner::Unknown),
             self.read_epp().unwrap_or(EPP::Unknown),
+            self.read_cpu_turbo_boost().unwrap_or(2),
             self.read_min_cpu_freq().unwrap_or(0.0),
             self.read_max_cpu_freq().unwrap_or(0.0),
             self.read_avg_cpu_freq().unwrap_or(0.0),
