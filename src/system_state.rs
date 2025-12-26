@@ -1,4 +1,4 @@
-use crate::battery::{BatteryStates, BatteryStatesError, ChargingStatus};
+use crate::battery::{BatteryStates, BatteryStatesError, ChargingStatus, PlatformProfile};
 use crate::cpu::{CpuStates, CpuStatesError, ScalingGoverner, EPP};
 use serde::Deserialize;
 use std::cell::RefCell;
@@ -184,7 +184,7 @@ impl SystemState {
         match self.battery_states.read_charging_status()? {
             ChargingStatus::Charging => self.set_performance_mode(),
             ChargingStatus::DisCharging => self.set_powersave_mode(),
-            ChargingStatus::Unknown => self.set_powersave_mode(),
+            ChargingStatus::Unknown => self.set_balanced_mode(),
         }
     }
 
@@ -194,15 +194,26 @@ impl SystemState {
 
         self.cpu_states.set_epp(EPP::Power)?;
 
+        self.battery_states.set_platform_profile(&PlatformProfile::LowPower)?;
+
         Ok(())
     }
 
     pub fn set_balanced_mode(&self) -> Result<(), SystemStateError> {
-        self.cpu_states
-            .set_scaling_governer(ScalingGoverner::Powersave)?;
-
         if self.battery_states.read_charging_status()? != ChargingStatus::Charging {
+            self.cpu_states
+                .set_scaling_governer(ScalingGoverner::Powersave)?;
+
+            self.cpu_states.set_epp(EPP::Power)?;
+
+            self.battery_states.set_platform_profile(&PlatformProfile::LowPower)?;
+        } else {
+            self.cpu_states
+                .set_scaling_governer(ScalingGoverner::Performance)?;
+
             self.cpu_states.set_epp(EPP::BalancePower)?;
+
+            self.battery_states.set_platform_profile(&PlatformProfile::Balanced)?;
         }
 
         Ok(())
@@ -217,6 +228,8 @@ impl SystemState {
             .set_scaling_governer(ScalingGoverner::Performance)?;
 
         self.cpu_states.set_epp(EPP::Performance)?;
+
+        self.battery_states.set_platform_profile(&PlatformProfile::Performance)?;
 
         Ok(())
     }

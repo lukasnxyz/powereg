@@ -7,6 +7,39 @@ use std::path::Path;
 
 const CHARGING: &str = "1";
 const DISCHARGING: &str = "0";
+const LOW_POWER: &str = "low-power";
+const BALANCED: &str = "balanced";
+const PERFORMANCE: &str = "performance";
+
+#[derive(Debug)]
+pub enum PlatformProfile {
+    LowPower,
+    Balanced,
+    Performance,
+    Unknown,
+}
+
+impl PlatformProfile {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            LOW_POWER => Self::LowPower,
+            BALANCED => Self::Balanced,
+            PERFORMANCE => Self::Performance,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl fmt::Display for PlatformProfile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LowPower => write!(f, "{}", LOW_POWER),
+            Self::Balanced => write!(f, "{}", BALANCED),
+            Self::Performance => write!(f, "{}", PERFORMANCE),
+            Self::Unknown => write!(f, "{}", BALANCED),
+        }
+    }
+}
 
 #[derive(PartialEq, Debug)]
 pub enum ChargingStatus {
@@ -58,6 +91,7 @@ pub struct BatteryStates {
     charge_start_threshold: RefCell<PersFd>,
     charge_stop_threshold: RefCell<PersFd>,
     total_power_draw: RefCell<PersFd>,
+    platform_profile: RefCell<PersFd>,
 }
 
 impl fmt::Display for BatteryStates {
@@ -69,13 +103,15 @@ impl fmt::Display for BatteryStates {
         battery capacity: {}%
         charge start threshold: {}%
         charge stop threshold: {}%
-        total power draw: {:.2} W",
+        total power draw: {:.2} W
+        platform profile: {}",
             self.read_charging_status()
                 .unwrap_or(ChargingStatus::Unknown),
             self.read_battery_capacity().unwrap_or(0),
             self.read_charge_start_threshold().unwrap_or(0),
             self.read_charge_stop_threshold().unwrap_or(0),
             self.read_total_power_draw().unwrap_or(0.0),
+            self.read_platform_profile().unwrap_or(PlatformProfile::Unknown),
         )
     }
 }
@@ -100,6 +136,10 @@ impl BatteryStates {
                 "/sys/class/power_supply/BAT0/power_now",
                 false,
             )?),
+            platform_profile: RefCell::new(PersFd::new(
+                "/sys/firmware/acpi/platform_profile",
+                true,
+            ).unwrap()),
         })
     }
 
@@ -169,5 +209,18 @@ impl BatteryStates {
 
         let watts = power_uw as f32 / 1_000_000.0;
         Ok(watts)
+    }
+
+    pub fn read_platform_profile(&self) -> Result<PlatformProfile, BatteryStatesError> {
+        Ok(PlatformProfile::from_string(
+            &self.platform_profile.borrow_mut().read_value()?,
+        ))
+    }
+
+    pub fn set_platform_profile(&self, pp: &PlatformProfile) -> Result<(), BatteryStatesError> {
+        Ok(self
+            .platform_profile
+            .borrow_mut()
+            .set_value(&pp.to_string())?)
     }
 }

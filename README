@@ -20,6 +20,10 @@ Powereg will need to be run with sudo
 - '--install': install powereg via 'systemctl enable' and 'systemctl start'.
 - '--uninstall': uninstalls powereg via 'systemctl disable' and 'systemctl stop'.
 
+TODO
+----
+- [ ] set min and max cpu freq different on power profiles
+
 License
 -------
 - MIT License (./LICENSE)
