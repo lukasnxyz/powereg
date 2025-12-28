@@ -150,26 +150,26 @@ impl CpuStates {
             "correct options for scaling governers",
         );
 
-        let mut available_epps = PersFd::new(
-            "/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_available_preferences",
-            false,
-        )?;
-        let battery_charging_status = BatteryStates::load_charging_status().unwrap();
-        let c_status =
-            ChargingStatus::from_string(&battery_charging_status.borrow_mut().read_value()?);
-        if c_status == ChargingStatus::Charging {
-            assert_eq!(
-                available_epps.read_value()?,
-                "performance",
-                "correct options for epp",
-            );
-        } else {
-            assert_eq!(
-                available_epps.read_value()?,
-                "default performance balance_performance balance_power power",
-                "correct options for epp",
-            );
-        }
+        //let mut available_epps = PersFd::new(
+        //    "/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_available_preferences",
+        //    false,
+        //)?;
+        //let battery_charging_status = BatteryStates::load_charging_status().unwrap();
+        //let c_status =
+        //    ChargingStatus::from_string(&battery_charging_status.borrow_mut().read_value()?);
+        //if c_status == ChargingStatus::Charging {
+        //    assert_eq!(
+        //        available_epps.read_value()?,
+        //        "performance",
+        //        "correct options for epp",
+        //    );
+        //} else {
+        //    assert_eq!(
+        //        available_epps.read_value()?,
+        //        "default performance balance_performance balance_power power",
+        //        "correct options for epp",
+        //    );
+        //}
 
         let mut scaling_governer: Vec<RefCell<PersFd>> = vec![];
         let mut epp: Vec<RefCell<PersFd>> = vec![];

@@ -24,7 +24,9 @@ Powereg will need to be run with sudo
 Todo
 ----
 - [ ] print messages toggle with debug flag (develop a nice macro for this)
+- [ ] auto enable amd_pstate on cpu_states setup
 - [X] (should be fixed now) on sleep/sleep+plugging charger in, it does into a performance mode even tho its not plugged in
+- [ ] make aur package
 
 License
 -------
