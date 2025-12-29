@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const builtin = @import("builtin");
 const OpenFlags = std.fs.File.OpenFlags;
 
@@ -269,6 +270,22 @@ pub const EPP = enum {
     const BALANCE_PERFORMANCE: []const u8 = "balance_performance";
     const BALANCE_POWER: []const u8 = "balance_power";
     const POWER: []const u8 = "power";
+
+    pub fn from_string(s: []const u8) EPP {
+        if (std.mem.eql(u8, DEFAULT, s)) {
+            return EPP.Default;
+        } else if (std.mem.eql(u8, PERFORMANCE, s)) {
+            return EPP.Performance;
+        } else if (std.mem.eql(u8, BALANCE_PERFORMANCE, s)) {
+            return EPP.BalancePerformance;
+        } else if (std.mem.eql(u8, BALANCE_POWER, s)) {
+            return EPP.BalancePower;
+        } else if (std.mem.eql(u8, POWER, s)) {
+            return EPP.Power;
+        } else {
+            return EPP.Unknown;
+        }
+    }
 };
 
 pub const CpuStatesError = error {
@@ -399,20 +416,17 @@ pub const CpuStates = struct {
     }
 
     pub fn read_scaling_governer(self: *CpuStates) !ScalingGoverner {
-        let gov =
-            ScalingGoverner::from_string(&self.scaling_governer[0].borrow_mut().read_value()?);
-        assert_ne!(
-            gov,
-            ScalingGoverner::Unknown,
-            "Scaling governer is not unknown"
-        );
+        const gov =
+            ScalingGoverner.from_string(try self.scaling_governer.items[0].borrow_mut().read_value());
 
-        for fd in &self.scaling_governer[1..] {
-            let val = ScalingGoverner::from_string(&fd.borrow_mut().read_value()?);
-            assert_eq!(gov, val, "Scaling governer is the same for all cpu cores");
+        assert(gov != ScalingGoverner.Unknown);
+
+        for (self.scaling_governer.items[1..]) |fd| {
+            const val = ScalingGoverner.from_string(try fd.borrow_mut().read_value());
+            assert(gov == val);
         }
 
-        Ok(gov)
+        return gov;
     }
 
     pub fn set_scaling_governer(self: *CpuStates, sg: ScalingGoverner) !void {
