@@ -9,6 +9,7 @@ Todo
 ----
 - [ ] print messages toggle with debug flag (develop a nice macro for this)
 - [ ] get number of cpu cores at compile time?
+    - [ ] try and remove use of allocator?
 - [ ] auto enable amd_pstate on cpu_states setup
 - [ ] make aur package
 - [ ] start/stop bluetooth
