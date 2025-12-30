@@ -3,7 +3,7 @@ const powereg = @import("powereg");
 const mem = std.mem;
 const fs = std.fs;
 
-const LOOP_DURATION = 3;
+const LOOP_DURATION = 5;
 const SERVICE_NAME = "powereg";
 const SERVICE_PATH = "/etc/systemd/system/powereg.service";
 const BINARY_PATH = "/usr/local/bin/powereg";

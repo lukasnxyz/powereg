@@ -2,9 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{
-        .preferred_optimize_mode = .Debug
-    }); // TODO: change this when release
+    const optimize = b.standardOptimizeOption(.{});
 
     const mod = b.addModule("powereg", .{
         .root_source_file = b.path("src/root.zig"),
@@ -21,12 +19,14 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "powereg", .module = mod },
             },
+            .link_libc = true,
         }),
     });
-    exe.linkLibC();
     exe.addObjectFile(.{ .cwd_relative = "/usr/lib/libudev.so" });
 
     b.installArtifact(exe);
+
+    // -------------------------------------------------------------------------
 
     const run_step = b.step("run", "Run the app");
 

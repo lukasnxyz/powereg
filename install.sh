@@ -6,10 +6,10 @@ NAME="powereg"
 TARGET_PATH="/usr/local/bin/"
 
 echo "--- Building $NAME in release mode ---"
-cargo build --release
+zig build --release=fast
 
 echo "--- Installing to $TARGET_PATH ---"
-sudo cp "target/release/$NAME" "$TARGET_PATH"
+sudo cp "zig-out/bin/$NAME" "$TARGET_PATH"
 
 echo "--- Copying config.toml to ~/.config/powereg/ ---"
 mkdir -p ~/.config/powereg/

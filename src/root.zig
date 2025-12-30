@@ -261,8 +261,8 @@ pub const SystemState = struct {
     pub fn print(self: *SystemState) !void {
         std.debug.print("", .{});
 
-        try self.battery_states.print();
         try self.cpu_states.print();
+        try self.battery_states.print();
     }
 
     pub fn set_powersave_mode(self: *SystemState) !void {
