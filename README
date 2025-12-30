@@ -3,7 +3,17 @@ Powereg
 A simple power management tool that controls the cpus power profile, EPP, as well as battery thresholds for ThinkPads.
 Currently only supports AMD cpus. If you have an Intel cpu and would like to expand this project, feel free submit a pr!
 
-**Currently rewriting in zig**
+** Still in development **
+
+Todo
+----
+- [ ] print messages toggle with debug flag (develop a nice macro for this)
+- [ ] get number of cpu cores at compile time?
+- [ ] auto enable amd_pstate on cpu_states setup
+- [ ] make aur package
+- [ ] start/stop bluetooth
+- [ ] config file for battery thresholds
+- [X] print messages with color (green, yellow, red)
 
 Getting started
 ---------------
@@ -22,15 +32,6 @@ Powereg will need to be run with sudo
 - '--daemon': runs powereg with no feedback.
 - '--install': install powereg via 'systemctl enable' and 'systemctl start'.
 - '--uninstall': uninstalls powereg via 'systemctl disable' and 'systemctl stop'.
-
-Todo
-----
-- [ ] print messages toggle with debug flag (develop a nice macro for this)
-- [ ] auto enable amd_pstate on cpu_states setup
-- [X] (should be fixed now) on sleep/sleep+plugging charger in, it does into a performance mode even tho its not plugged in
-- [ ] make aur package
-- [ ] start/stop bluetooth
-- [ ] config file for battery thresholds
 
 License
 -------
