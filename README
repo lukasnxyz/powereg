@@ -13,8 +13,9 @@ Todo
 - [ ] auto enable amd_pstate on cpu_states setup
 - [ ] make aur package
 - [ ] start/stop bluetooth
-- [ ] config file for battery thresholds
+- [X] config file for battery thresholds
 - [X] print messages with color (green, yellow, red)
+- [ ] allocator.free(var) on everything I fucking forgot wow.
 
 Getting started
 ---------------

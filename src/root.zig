@@ -29,7 +29,7 @@ pub const EventPoller = struct {
     last_periodic_check: std.time.Instant,
     periodic_interval_ns: u64,
 
-    pub fn init(interval_s: u64) !EventPoller {
+    pub fn init(interval_s: u64) !@This() {
         const udev = c.udev_new() orelse return error.UdevInitFailed;
         errdefer _ = c.udev_unref(udev);
         const monitor = c.udev_monitor_new_from_netlink(udev, "udev")
@@ -47,12 +47,12 @@ pub const EventPoller = struct {
         };
     }
 
-    pub fn deinit(self: *EventPoller) void {
+    pub fn deinit(self: *@This()) void {
         _ = c.udev_monitor_unref(self.monitor);
         _ = c.udev_unref(self.udev);
     }
 
-    pub fn poll_events(self: *EventPoller) !Event {
+    pub fn poll_events(self: *@This()) !Event {
         const now = try std.time.Instant.now();
         const elapsed = now.since(self.last_periodic_check);
 
@@ -175,16 +175,13 @@ pub const EventPoller = struct {
     }
 };
 
-const PersFdError = error{
-    InvalidFilePermsErr,
-};
-
+const PersFdError = error { InvalidFilePermsErr };
 const PersFd = struct {
     file: std.fs.File,
     write: bool,
     buffer: [512]u8 = undefined,
 
-    pub fn init(path: []const u8, write: bool) !PersFd {
+    pub fn init(path: []const u8, write: bool) !@This() {
         const flags = if (write) OpenFlags{ .mode = .read_write } else OpenFlags{ .mode = .read_only };
         const file = try std.fs.cwd().openFile(path, flags);
         return PersFd{
@@ -193,12 +190,12 @@ const PersFd = struct {
         };
     }
 
-    pub fn deinit(self: *PersFd) void {
+    pub fn deinit(self: *@This()) void {
         @memset(&self.buffer, 0);
         self.file.close();
     }
 
-    pub fn read_value(self: *PersFd) ![]const u8 {
+    pub fn read_value(self: *@This()) ![]const u8 {
         // TODO: readAll here is very dangerous with buffer[512] for /proc/stat
         try self.file.seekTo(0);
         @memset(&self.buffer, 0);
@@ -207,7 +204,7 @@ const PersFd = struct {
         return mem.trim(u8, raw_content, &std.ascii.whitespace);
     }
 
-    pub fn set_value(self: PersFd, value: []const u8) !void {
+    pub fn set_value(self: @This(), value: []const u8) !void {
         if (!self.write) {
             return error.InvalidFilePermsErr;
         }
@@ -221,6 +218,7 @@ const PersFd = struct {
 pub const CpuType = enum { AMD, Intel, Unknown };
 pub const AcpiType = enum { ThinkPad, IdeaPad, Unknown };
 pub const State = enum { Powersave, Balanced, Performance };
+pub const SystemStateError = error { InvalidAcpiType };
 pub const SystemState = struct {
     linux: bool,
     cpu_type: CpuType,
@@ -231,7 +229,7 @@ pub const SystemState = struct {
 
     state: State,
 
-    pub fn init(allocator: Allocator) !SystemState {
+    pub fn init(allocator: Allocator) !@This() {
         const n = try SystemState.num_cpu_cores();
         const cpu_type = SystemState.detect_cpu_type();
         return .{
@@ -430,7 +428,7 @@ pub const ScalingGoverner = enum {
     const PERFORMANCE: []const u8 = "performance";
     const POWERSAVE: []const u8 = "powersave";
 
-    pub fn from_string(s: []const u8) ScalingGoverner {
+    pub fn from_string(s: []const u8) @This() {
         if (mem.eql(u8, POWERSAVE, s)) {
             return ScalingGoverner.Powersave;
         } else if (mem.eql(u8, PERFORMANCE, s)) {
@@ -455,7 +453,7 @@ pub const EPP = enum {
     const BALANCE_POWER: []const u8 = "balance_power";
     const POWER: []const u8 = "power";
 
-    pub fn from_string(s: []const u8) EPP {
+    pub fn from_string(s: []const u8) @This() {
         if (mem.eql(u8, DEFAULT, s)) {
             return EPP.Default;
         } else if (mem.eql(u8, PERFORMANCE, s)) {
@@ -493,7 +491,7 @@ pub const CpuStates = struct {
 
     // TODO: a good way to split this would be via just having strings for amd and intel
     //      for specific paths and having those be dynamic
-    pub fn init(allocator: Allocator, n: usize, cpu_type: CpuType) !CpuStates {
+    pub fn init(allocator: Allocator, n: usize, cpu_type: CpuType) !@This() {
         var available_scaling_govs =
             try PersFd.init("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false);
         var amd_pstate_status =
@@ -802,7 +800,7 @@ pub const ChargingStatus = enum {
     const CHARGING: []const u8 = "1";
     const DISCHARGING: []const u8 = "0";
 
-    pub fn from_string(s: []const u8) ChargingStatus {
+    pub fn from_string(s: []const u8) @This() {
         if (mem.eql(u8, CHARGING, s)) {
             return ChargingStatus.Charging;
         } else if (mem.eql(u8, DISCHARGING, s)) {
@@ -823,7 +821,7 @@ pub const PlatformProfile = enum {
     const BALANCED: []const u8 = "balanced";
     const PERFORMANCE: []const u8 = "performance";
 
-    pub fn from_string(s: []const u8) PlatformProfile {
+    pub fn from_string(s: []const u8) @This() {
         if (mem.eql(u8, LOW_POWER, s)) {
             return PlatformProfile.LowPower;
         } else if (mem.eql(u8, BALANCED, s)) {
@@ -848,17 +846,17 @@ pub const PlatformProfile = enum {
 pub const BatteryStates = struct {
     battery_charging_status: PersFd,
     battery_capacity: PersFd,
-    charge_start_threshold: PersFd,
     charge_stop_threshold: PersFd,
+    charge_start_threshold: PersFd,
     total_power_draw: PersFd,
     platform_profile: PersFd,
 
-    pub fn init() !BatteryStates {
+    pub fn init() !@This() {
         return .{
             .battery_charging_status = try BatteryStates.load_charging_status(),
             .battery_capacity = try PersFd.init("/sys/class/power_supply/BAT0/capacity", false),
-            .charge_start_threshold = try PersFd.init("/sys/class/power_supply/BAT0/charge_start_threshold", true),
             .charge_stop_threshold = try PersFd.init("/sys/class/power_supply/BAT0/charge_stop_threshold", true),
+            .charge_start_threshold = try PersFd.init("/sys/class/power_supply/BAT0/charge_start_threshold", true),
             .total_power_draw = try PersFd.init("/sys/class/power_supply/BAT0/power_now", false),
             .platform_profile = try PersFd.init("/sys/firmware/acpi/platform_profile", true),
         };
@@ -878,8 +876,8 @@ pub const BatteryStates = struct {
             \\Battery:
             \\  charging status: {any}
             \\  battery capacity: {d:.2}%
-            \\  charge start threshold: {d:.2}%
             \\  charge stop threshold: {d:.2}%
+            \\  charge start threshold: {d:.2}%
             \\  total power draw: {d:.2} W
             \\  platform profile: {any}
             \\
@@ -888,8 +886,8 @@ pub const BatteryStates = struct {
         std.debug.print(output, .{
             try self.read_charging_status(),
             try self.read_battery_capacity(),
-            try self.read_charge_start_threshold(),
             try self.read_charge_stop_threshold(),
+            try self.read_charge_start_threshold(),
             try self.read_total_power_draw(),
             try self.read_platform_profile(),
         });
@@ -926,28 +924,28 @@ pub const BatteryStates = struct {
         return ChargingStatus.from_string(try self.battery_charging_status.read_value());
     }
 
-    pub fn read_battery_capacity(self: *@This()) !usize {
-        return std.fmt.parseInt(usize, try self.battery_capacity.read_value(), 10);
+    pub fn read_battery_capacity(self: *@This()) !u8 {
+        return std.fmt.parseInt(u8, try self.battery_capacity.read_value(), 10);
     }
 
-    pub fn read_charge_start_threshold(self: *@This()) !usize {
-        return std.fmt.parseInt(usize, try self.charge_start_threshold.read_value(), 10);
+    pub fn read_charge_stop_threshold(self: *@This()) !u8 {
+        return std.fmt.parseInt(u8, try self.charge_stop_threshold.read_value(), 10);
     }
 
-    pub fn set_charge_start_threshold(self: *@This(), start: usize) !void {
-        const buffer: [5]u8 = undefined;
-        const string = try std.fmt.bufPrint(&buffer, "{d}", .{start});
-        try self.charge_start_threshold.set_value(string);
-    }
-
-    pub fn read_charge_stop_threshold(self: *@This()) !usize {
-        return std.fmt.parseInt(usize, try self.charge_stop_threshold.read_value(), 10);
-    }
-
-    pub fn set_charge_stop_threshold(self: *@This(), stop: usize) !void {
-        const buffer: [5]u8 = undefined;
+    pub fn set_charge_stop_threshold(self: *@This(), stop: u8) !void {
+        var buffer: [5]u8 = undefined;
         const string = try std.fmt.bufPrint(&buffer, "{d}", .{stop});
         try self.charge_stop_threshold.set_value(string);
+    }
+
+    pub fn read_charge_start_threshold(self: *@This()) !u8 {
+        return std.fmt.parseInt(u8, try self.charge_start_threshold.read_value(), 10);
+    }
+
+    pub fn set_charge_start_threshold(self: *@This(), start: u8) !void {
+        var buffer: [5]u8 = undefined;
+        const string = try std.fmt.bufPrint(&buffer, "{d}", .{start});
+        try self.charge_start_threshold.set_value(string);
     }
 
     pub fn read_total_power_draw(self: *@This()) !f32 {
@@ -962,5 +960,72 @@ pub const BatteryStates = struct {
 
     pub fn set_platform_profile(self: *@This(), pp: PlatformProfile) !void {
         try self.platform_profile.set_value(pp.to_string());
+    }
+};
+
+pub const ConfigError = error { InvalidThresholds };
+pub const Config = struct {
+    battery_stop_threshold: u8,
+    battery_start_threshold: u8,
+
+    pub fn init(allocator: Allocator) !@This() {
+        var buffer: [128]u8 = undefined;
+        const path = try Config.get_config_path(allocator, &buffer);
+        std.debug.print("path: {s}\n", .{path});
+        return try parse_file(allocator, path);
+    }
+
+    fn get_config_path(allocator: Allocator, buffer: []u8) ![]u8 {
+        var env_map = try std.process.getEnvMap(allocator);
+        defer env_map.deinit();
+        //defer allocator.free(env_map);
+
+        if (env_map.get("SUDO_USER")) |sudo_user| {
+            return try std.fmt.bufPrint(
+                buffer,
+                "/home/{s}/.config/powereg/powereg.conf",
+                .{sudo_user}
+            );
+        }
+
+        if (env_map.get("HOME")) |home| {
+            return try std.fmt.bufPrint(
+                buffer,
+                "{s}/.config/powereg/powereg.conf",
+                .{home}
+            );
+        }
+
+        return error.EnvironmentError;
+    }
+
+    fn parse_file(allocator: Allocator, path: []const u8) !@This() {
+        var fd = try PersFd.init(path, false);
+        defer fd.deinit();
+        const text = try fd.read_value();
+
+        const parsed = try std.json.parseFromSlice(
+            @This(),
+            allocator,
+            text,
+            .{}
+        );
+        defer parsed.deinit();
+
+        return parsed.value;
+    }
+
+    pub fn apply(self: @This(), system_state: *SystemState) !void {
+        if (system_state.acpi_type != AcpiType.ThinkPad)
+            return SystemStateError.InvalidAcpiType;
+
+        if (self.battery_start_threshold > self.battery_stop_threshold)
+            return ConfigError.InvalidThresholds;
+
+        try system_state.battery_states.set_charge_stop_threshold(self.battery_stop_threshold);
+        std.debug.print("Battery charge stop threshold set to {}\n", .{self.battery_stop_threshold});
+
+        try system_state.battery_states.set_charge_start_threshold(self.battery_start_threshold);
+        std.debug.print("Battery charge start threshold set to {}\n", .{self.battery_start_threshold});
     }
 };

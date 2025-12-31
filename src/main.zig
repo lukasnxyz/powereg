@@ -36,6 +36,12 @@ pub fn main() !void {
         return;
     }
 
+    const config = try powereg.Config.init(allocator);
+    std.debug.print("config => {any}\n", .{config});
+    try config.apply(&system_state); //catch |e| {
+    //    std.debug.print("Error while applying config: {any}", .{e});
+    //};
+
     const ArgType = enum { live, monitor, daemon, install, uninstall };
     const arg_type = try parseArg(ArgType);
     switch (arg_type) {
@@ -101,6 +107,9 @@ pub fn main() !void {
             try uninstall_daemon(allocator);
         },
     }
+
+    const leaks = gpa.detectLeaks();
+    std.debug.print("leaks: {any}", .{leaks});
 }
 
 fn parseArg(comptime EnumType: type) !EnumType {

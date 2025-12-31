@@ -11,9 +11,9 @@ zig build --release=fast
 echo "--- Installing to $TARGET_PATH ---"
 sudo cp "zig-out/bin/$NAME" "$TARGET_PATH"
 
-echo "--- Copying config.toml to ~/.config/powereg/ ---"
+echo "--- Copying powereg.conf to ~/.config/powereg/ ---"
 mkdir -p ~/.config/powereg/
-cp powereg_config.toml ~/.config/powereg/config.toml
+cp powereg.conf ~/.config/powereg/powereg.conf
 
 echo "--- You can now run '$NAME' from your terminal. ---"
 echo "--- Get started by running 'sudo $NAME --install' to run the daemon. ---"
