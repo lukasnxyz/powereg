@@ -244,7 +244,7 @@ pub const SystemState = struct {
         };
     }
 
-    pub fn post_init(self: *SystemState) !void {
+    pub fn post_init(self: *@This()) !void {
         const status = try self.battery_states.read_charging_status();
         switch (status) {
             ChargingStatus.Charging => return self.set_powersave_mode(),
@@ -253,26 +253,25 @@ pub const SystemState = struct {
         }
     }
 
-    pub fn deinit(self: *SystemState, allocator: Allocator) void {
+    pub fn deinit(self: *@This(), allocator: Allocator) void {
         self.battery_states.deinit();
         self.cpu_states.deinit(allocator);
     }
 
-    pub fn print(self: *SystemState) !void {
-        std.debug.print("", .{});
-
+    pub fn print(self: *@This()) !void {
         try self.cpu_states.print();
         try self.battery_states.print();
+        std.debug.print("State: {any}\n", .{self.state});
     }
 
-    pub fn set_powersave_mode(self: *SystemState) !void {
+    pub fn set_powersave_mode(self: *@This()) !void {
         try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
         try self.cpu_states.set_epp(EPP.Power);
         try self.battery_states.set_platform_profile(PlatformProfile.LowPower);
         try self.cpu_states.set_cpu_turbo_boost(0);
     }
 
-    pub fn set_balanced_mode(self: *SystemState) !void {
+    pub fn set_balanced_mode(self: *@This()) !void {
         if (try self.battery_states.read_charging_status() != ChargingStatus.Charging) {
             try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
             try self.cpu_states.set_epp(EPP.Power);
@@ -286,7 +285,7 @@ pub const SystemState = struct {
         try self.cpu_states.set_cpu_turbo_boost(0);
     }
 
-    pub fn set_performance_mode(self: *SystemState) !void {
+    pub fn set_performance_mode(self: *@This()) !void {
         if (try self.battery_states.read_charging_status() == ChargingStatus.DisCharging)
             return;
 
@@ -551,7 +550,7 @@ pub const CpuStates = struct {
         };
     }
 
-    pub fn deinit(self: *CpuStates, allocator: Allocator) void {
+    pub fn deinit(self: *@This(), allocator: Allocator) void {
         for (self.scaling_governer.items, self.epp.items, self.min_cpu_freq.items, self.max_cpu_freq.items, self.cpu_freq.items) |*sg, *epp, *micf, *macf, *cf| {
             sg.deinit();
             epp.deinit();
@@ -572,7 +571,7 @@ pub const CpuStates = struct {
         self.cpu_power_draw.deinit();
     }
 
-    pub fn print(self: *CpuStates) !void {
+    pub fn print(self: *@This()) !void {
         const output =
             \\CPU:
             \\  cpu type: {any}
@@ -586,6 +585,7 @@ pub const CpuStates = struct {
             \\  cpu power draw: {d:.2} W
             \\
         ;
+
         std.debug.print(output, .{
             self.cpu_type,
             try self.read_scaling_governer(),
@@ -600,7 +600,7 @@ pub const CpuStates = struct {
         });
     }
 
-    pub fn read_scaling_governer(self: *CpuStates) !ScalingGoverner {
+    pub fn read_scaling_governer(self: *@This()) !ScalingGoverner {
         const gov =
             ScalingGoverner.from_string(try self.scaling_governer.items[0].read_value());
 
@@ -614,7 +614,7 @@ pub const CpuStates = struct {
         return gov;
     }
 
-    pub fn set_scaling_governer(self: *CpuStates, sg: ScalingGoverner) !void {
+    pub fn set_scaling_governer(self: *@This(), sg: ScalingGoverner) !void {
         const write = switch (sg) {
             ScalingGoverner.Powersave => ScalingGoverner.POWERSAVE,
             ScalingGoverner.Performance => ScalingGoverner.PERFORMANCE,
@@ -626,7 +626,7 @@ pub const CpuStates = struct {
         }
     }
 
-    pub fn read_epp(self: *CpuStates) !EPP {
+    pub fn read_epp(self: *@This()) !EPP {
         const gov = EPP.from_string(try self.epp.items[0].read_value());
         assert(gov != EPP.Unknown);
 
@@ -638,7 +638,7 @@ pub const CpuStates = struct {
         return gov;
     }
 
-    pub fn set_epp(self: *CpuStates, epp: EPP) !void {
+    pub fn set_epp(self: *@This(), epp: EPP) !void {
         const write = switch (epp) {
             EPP.Default => EPP.DEFAULT,
             EPP.Performance => EPP.PERFORMANCE,
@@ -653,18 +653,18 @@ pub const CpuStates = struct {
         }
     }
 
-    pub fn read_cpu_turbo_boost(self: *CpuStates) !u8 {
+    pub fn read_cpu_turbo_boost(self: *@This()) !u8 {
         return std.fmt.parseInt(u8, try self.cpu_turbo_boost.read_value(), 10);
     }
 
-    pub fn set_cpu_turbo_boost(self: *CpuStates, boost: u8) !void {
+    pub fn set_cpu_turbo_boost(self: *@This(), boost: u8) !void {
         var buf: [3]u8 = undefined;
         const str = try std.fmt.bufPrint(&buf, "{}", .{boost});
         try self.cpu_turbo_boost.set_value(str);
     }
 
     // GHz
-    pub fn read_avg_cpu_freq(self: *CpuStates) !f32 {
+    pub fn read_avg_cpu_freq(self: *@This()) !f32 {
         var total: usize = 0;
 
         for (self.cpu_freq.items) |*fd| {
@@ -676,7 +676,7 @@ pub const CpuStates = struct {
     }
 
     // GHz
-    pub fn read_min_cpu_freq(self: *CpuStates) !f32 {
+    pub fn read_min_cpu_freq(self: *@This()) !f32 {
         const prev = try std.fmt.parseInt(usize, try self.min_cpu_freq.items[0].read_value(), 10);
 
         for (self.min_cpu_freq.items[1..]) |*fd| {
@@ -690,7 +690,7 @@ pub const CpuStates = struct {
     ////pub fn set_min_cpu_freq(&self) -> io::Result<usize> {}
 
     // GHz
-    pub fn read_max_cpu_freq(self: *CpuStates) !f32 {
+    pub fn read_max_cpu_freq(self: *@This()) !f32 {
         const prev = try std.fmt.parseInt(usize, try self.max_cpu_freq.items[0].read_value(), 10);
 
         for (self.max_cpu_freq.items[1..]) |*fd| {
@@ -704,12 +704,12 @@ pub const CpuStates = struct {
     ////pub fn set_max_cpu_freq(&mut self) -> io::Result<usize> {}
 
     // celcius
-    pub fn read_cpu_temp(self: *CpuStates) !usize {
+    pub fn read_cpu_temp(self: *@This()) !usize {
         const temp = try std.fmt.parseInt(usize, try self.cpu_temp.read_value(), 10);
         return temp / 1000;
     }
 
-    pub fn read_cpu_load(self: *CpuStates) !f64 {
+    pub fn read_cpu_load(self: *@This()) !f64 {
         const proc_stat = try self.cpu_load.read_value();
         var line_iter = mem.splitScalar(u8, proc_stat, '\n');
         const line = line_iter.next() orelse
@@ -782,7 +782,7 @@ pub const CpuStates = struct {
         return load_percent;
     }
 
-    pub fn read_cpu_power_draw(self: *CpuStates) !f32 {
+    pub fn read_cpu_power_draw(self: *@This()) !f32 {
         const start = try std.fmt.parseInt(u64, try self.cpu_power_draw.read_value(), 10);
 
         std.Thread.sleep(500 * std.time.ns_per_ms);
@@ -864,7 +864,7 @@ pub const BatteryStates = struct {
         };
     }
 
-    pub fn deinit(self: *BatteryStates) void {
+    pub fn deinit(self: *@This()) void {
         self.battery_charging_status.deinit();
         self.battery_capacity.deinit();
         self.charge_start_threshold.deinit();
@@ -873,7 +873,7 @@ pub const BatteryStates = struct {
         self.platform_profile.deinit();
     }
 
-    pub fn print(self: *BatteryStates) !void {
+    pub fn print(self: *@This()) !void {
         const output =
             \\Battery:
             \\  charging status: {any}
@@ -884,6 +884,7 @@ pub const BatteryStates = struct {
             \\  platform profile: {any}
             \\
         ;
+
         std.debug.print(output, .{
             try self.read_charging_status(),
             try self.read_battery_capacity(),
@@ -921,45 +922,45 @@ pub const BatteryStates = struct {
         return error.FileNotFound;
     }
 
-    pub fn read_charging_status(self: *BatteryStates) !ChargingStatus {
+    pub fn read_charging_status(self: *@This()) !ChargingStatus {
         return ChargingStatus.from_string(try self.battery_charging_status.read_value());
     }
 
-    pub fn read_battery_capacity(self: *BatteryStates) !usize {
+    pub fn read_battery_capacity(self: *@This()) !usize {
         return std.fmt.parseInt(usize, try self.battery_capacity.read_value(), 10);
     }
 
-    pub fn read_charge_start_threshold(self: *BatteryStates) !usize {
+    pub fn read_charge_start_threshold(self: *@This()) !usize {
         return std.fmt.parseInt(usize, try self.charge_start_threshold.read_value(), 10);
     }
 
-    pub fn set_charge_start_threshold(self: *BatteryStates, start: usize) !void {
+    pub fn set_charge_start_threshold(self: *@This(), start: usize) !void {
         const buffer: [5]u8 = undefined;
         const string = try std.fmt.bufPrint(&buffer, "{d}", .{start});
         try self.charge_start_threshold.set_value(string);
     }
 
-    pub fn read_charge_stop_threshold(self: *BatteryStates) !usize {
+    pub fn read_charge_stop_threshold(self: *@This()) !usize {
         return std.fmt.parseInt(usize, try self.charge_stop_threshold.read_value(), 10);
     }
 
-    pub fn set_charge_stop_threshold(self: *BatteryStates, stop: usize) !void {
+    pub fn set_charge_stop_threshold(self: *@This(), stop: usize) !void {
         const buffer: [5]u8 = undefined;
         const string = try std.fmt.bufPrint(&buffer, "{d}", .{stop});
         try self.charge_stop_threshold.set_value(string);
     }
 
-    pub fn read_total_power_draw(self: *BatteryStates) !f32 {
+    pub fn read_total_power_draw(self: *@This()) !f32 {
         const power_uw = try std.fmt.parseFloat(f32, try self.total_power_draw.read_value());
         const watts = power_uw / 1_000_000.0;
         return watts;
     }
 
-    pub fn read_platform_profile(self: *BatteryStates) !PlatformProfile {
+    pub fn read_platform_profile(self: *@This()) !PlatformProfile {
         return PlatformProfile.from_string(try self.platform_profile.read_value());
     }
 
-    pub fn set_platform_profile(self: *BatteryStates, pp: PlatformProfile) !void {
+    pub fn set_platform_profile(self: *@This(), pp: PlatformProfile) !void {
         try self.platform_profile.set_value(pp.to_string());
     }
 };
