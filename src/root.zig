@@ -9,6 +9,8 @@ const OpenFlags = std.fs.File.OpenFlags;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
+pub const N_CPUS = @import("build_options").cpu_count;
+
 pub const Event = enum {
     PowerInPlug,
     PowerUnPlug,
@@ -229,14 +231,13 @@ pub const SystemState = struct {
 
     state: State,
 
-    pub fn init(allocator: Allocator) !@This() {
-        const n = try SystemState.num_cpu_cores();
+    pub fn init() !@This() {
         const cpu_type = SystemState.detect_cpu_type();
         return .{
             .linux = SystemState.detect_linux(),
             .cpu_type = cpu_type,
             .acpi_type = try SystemState.detect_acpi_type(),
-            .cpu_states = try CpuStates.init(allocator, n, cpu_type),
+            .cpu_states = try CpuStates.init(cpu_type),
             .battery_states = try BatteryStates.init(),
             .state = State.Powersave,
         };
@@ -251,9 +252,9 @@ pub const SystemState = struct {
         }
     }
 
-    pub fn deinit(self: *@This(), allocator: Allocator) void {
+    pub fn deinit(self: *@This()) void {
         self.battery_states.deinit();
-        self.cpu_states.deinit(allocator);
+        self.cpu_states.deinit();
     }
 
     pub fn print(self: *@This()) !void {
@@ -362,31 +363,6 @@ pub const SystemState = struct {
         return null;
     }
 
-    fn num_cpu_cores() !usize {
-        const cpu_dir_path = "/sys/devices/system/cpu/";
-        var count: usize = 0;
-
-        var dir = try std.fs.openDirAbsolute(cpu_dir_path, .{ .iterate = true });
-        defer dir.close();
-
-        var it = dir.iterate();
-
-        while (try it.next()) |entry| {
-            if (entry.kind != .directory) continue;
-
-            const name = entry.name;
-
-            if (mem.startsWith(u8, name, "cpu") and !mem.eql(u8, name, "cpufreq")) {
-                const suffix = name[3..];
-
-                _ = std.fmt.parseInt(u32, suffix, 10) catch continue;
-                count += 1;
-            }
-        }
-
-        return count;
-    }
-
     fn detect_acpi_type() !AcpiType {
         const thinkpad = "thinkpad";
         const ideapad = "ideapad";
@@ -476,22 +452,20 @@ pub const CpuStatesError = error{
 };
 
 pub const CpuStates = struct {
-    cpu_core_count: usize,
     cpu_type: CpuType,
-
-    scaling_governer: std.ArrayListUnmanaged(PersFd),
-    epp: std.ArrayListUnmanaged(PersFd),
+    scaling_governer: [N_CPUS]PersFd,
+    epp: [N_CPUS]PersFd,
     cpu_turbo_boost: PersFd,
-    min_cpu_freq: std.ArrayListUnmanaged(PersFd),
-    max_cpu_freq: std.ArrayListUnmanaged(PersFd),
-    cpu_freq: std.ArrayListUnmanaged(PersFd), // TODO: possibly wrong (not same as btop)
+    min_cpu_freq: [N_CPUS]PersFd,
+    max_cpu_freq: [N_CPUS]PersFd,
+    cpu_freq: [N_CPUS]PersFd, // TODO: possibly wrong (not same as btop)
     cpu_temp: PersFd,
     cpu_load: PersFd, // TODO: possibly wrong
     cpu_power_draw: PersFd, // TODO: possibly wrong
 
     // TODO: a good way to split this would be via just having strings for amd and intel
     //      for specific paths and having those be dynamic
-    pub fn init(allocator: Allocator, n: usize, cpu_type: CpuType) !@This() {
+    pub fn init(cpu_type: CpuType) !@This() {
         var available_scaling_govs =
             try PersFd.init("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false);
         var amd_pstate_status =
@@ -507,33 +481,31 @@ pub const CpuStates = struct {
             return error.InvalidScalingGovVal;
         }
 
-        var scaling_governer = std.ArrayListUnmanaged(PersFd){};
-        var epp = std.ArrayListUnmanaged(PersFd){};
-        var cpu_freq = std.ArrayListUnmanaged(PersFd){};
-        var max_cpu_freq = std.ArrayListUnmanaged(PersFd){};
-        var min_cpu_freq = std.ArrayListUnmanaged(PersFd){};
+        var scaling_governer: [N_CPUS]PersFd = undefined;
+        var epp: [N_CPUS]PersFd = undefined;
+        var cpu_freq: [N_CPUS]PersFd = undefined;
+        var max_cpu_freq: [N_CPUS]PersFd = undefined;
+        var min_cpu_freq: [N_CPUS]PersFd = undefined;
 
-        for (0..n) |i| {
-            var buf: [70]u8 = undefined;
-
+        var buf: [70]u8 = undefined;
+        for (0..N_CPUS) |i| {
             const scaling_gov_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{d}/cpufreq/scaling_governor", .{i});
-            try scaling_governer.append(allocator, try PersFd.init(scaling_gov_path, true));
+            scaling_governer[i] = try PersFd.init(scaling_gov_path, true);
 
             const epp_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", .{i});
-            try epp.append(allocator, try PersFd.init(epp_path, true));
+            epp[i] = try PersFd.init(epp_path, true);
 
             const cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", .{i});
-            try cpu_freq.append(allocator, try PersFd.init(cpu_freq_path, false));
+            cpu_freq[i] = try PersFd.init(cpu_freq_path, false);
 
             const min_cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_min_freq", .{i});
-            try min_cpu_freq.append(allocator, try PersFd.init(min_cpu_freq_path, true));
+            min_cpu_freq[i] = try PersFd.init(min_cpu_freq_path, true);
 
             const max_cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", .{i});
-            try max_cpu_freq.append(allocator, try PersFd.init(max_cpu_freq_path, true));
+            max_cpu_freq[i] = try PersFd.init(max_cpu_freq_path, true);
         }
 
         return .{
-            .cpu_core_count = n,
             .cpu_type = cpu_type,
             .scaling_governer = scaling_governer,
             .epp = epp,
@@ -547,22 +519,14 @@ pub const CpuStates = struct {
         };
     }
 
-    pub fn deinit(self: *@This(), allocator: Allocator) void {
-        for (self.scaling_governer.items) |*item| item.deinit();
-        self.scaling_governer.deinit(allocator);
-
-        for (self.epp.items) |*item| item.deinit();
-        self.epp.deinit(allocator);
-
-        for (self.min_cpu_freq.items) |*item| item.deinit();
-        self.min_cpu_freq.deinit(allocator);
-
-        for (self.max_cpu_freq.items) |*item| item.deinit();
-        self.max_cpu_freq.deinit(allocator);
-
-        for (self.cpu_freq.items) |*item| item.deinit();
-        self.cpu_freq.deinit(allocator);
-
+    pub fn deinit(self: *@This()) void {
+        for (0..N_CPUS) |i| {
+            self.scaling_governer[i].deinit();
+            self.epp[i].deinit();
+            self.min_cpu_freq[i].deinit();
+            self.max_cpu_freq[i].deinit();
+            self.cpu_freq[i].deinit();
+        }
         self.cpu_turbo_boost.deinit();
         self.cpu_temp.deinit();
         self.cpu_load.deinit();
@@ -599,13 +563,11 @@ pub const CpuStates = struct {
     }
 
     pub fn read_scaling_governer(self: *@This()) !ScalingGoverner {
-        const gov =
-            ScalingGoverner.from_string(try self.scaling_governer.items[0].read_value());
-
+        const gov = ScalingGoverner.from_string(try self.scaling_governer[0].read_value());
         assert(gov != ScalingGoverner.Unknown);
 
-        for (self.scaling_governer.items[1..]) |*fd| {
-            const val = ScalingGoverner.from_string(try fd.read_value());
+        for (1..N_CPUS) |i| {
+            const val = ScalingGoverner.from_string(try self.scaling_governer[i].read_value());
             assert(gov == val);
         }
 
@@ -619,17 +581,17 @@ pub const CpuStates = struct {
             else => return error.InvalidScalingGovVal,
         };
 
-        for (self.scaling_governer.items) |*fd| {
-            try fd.set_value(write);
+        for (0..N_CPUS) |i| {
+            try self.scaling_governer[i].set_value(write);
         }
     }
 
     pub fn read_epp(self: *@This()) !EPP {
-        const gov = EPP.from_string(try self.epp.items[0].read_value());
+        const gov = EPP.from_string(try self.epp[0].read_value());
         assert(gov != EPP.Unknown);
 
-        for (self.epp.items[1..]) |*fd| {
-            const val = EPP.from_string(try fd.read_value());
+        for (1..N_CPUS) |i| {
+            const val = EPP.from_string(try self.epp[i].read_value());
             assert(gov == val);
         }
 
@@ -646,8 +608,8 @@ pub const CpuStates = struct {
             else => return error.InvalidEPPVal,
         };
 
-        for (self.epp.items) |*fd| {
-            try fd.set_value(write);
+        for (0..N_CPUS) |i| {
+            try self.epp[i].set_value(write);
         }
     }
 
@@ -665,20 +627,20 @@ pub const CpuStates = struct {
     pub fn read_avg_cpu_freq(self: *@This()) !f32 {
         var total: usize = 0;
 
-        for (self.cpu_freq.items) |*fd| {
-            const val = try fd.read_value();
+        for (0..N_CPUS) |i| {
+            const val = try self.cpu_freq[i].read_value();
             total += try std.fmt.parseInt(usize, val, 10);
         }
 
-        return @as(f32, @floatFromInt(total / self.cpu_core_count)) / 1_000_000.0;
+        return @as(f32, @floatFromInt(total / N_CPUS)) / 1_000_000.0;
     }
 
     // GHz
     pub fn read_min_cpu_freq(self: *@This()) !f32 {
-        const prev = try std.fmt.parseInt(usize, try self.min_cpu_freq.items[0].read_value(), 10);
+        const prev = try std.fmt.parseInt(usize, try self.min_cpu_freq[0].read_value(), 10);
 
-        for (self.min_cpu_freq.items[1..]) |*fd| {
-            const val = try std.fmt.parseInt(usize, try fd.read_value(), 10);
+        for (1..N_CPUS) |i| {
+            const val = try std.fmt.parseInt(usize, try self.min_cpu_freq[i].read_value(), 10);
             assert(val == prev);
         }
 
@@ -689,10 +651,10 @@ pub const CpuStates = struct {
 
     // GHz
     pub fn read_max_cpu_freq(self: *@This()) !f32 {
-        const prev = try std.fmt.parseInt(usize, try self.max_cpu_freq.items[0].read_value(), 10);
+        const prev = try std.fmt.parseInt(usize, try self.max_cpu_freq[0].read_value(), 10);
 
-        for (self.max_cpu_freq.items[1..]) |*fd| {
-            const val = try std.fmt.parseInt(usize, try fd.read_value(), 10);
+        for (1..N_CPUS) |i| {
+            const val = try std.fmt.parseInt(usize, try self.max_cpu_freq[i].read_value(), 10);
             assert(val == prev);
         }
 

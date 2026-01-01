@@ -4,11 +4,20 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const cpu_count = b.option(
+        usize,
+        "cpu-count",
+        "Number of CPU cores (auto-detected if not specified)",
+    ) orelse std.Thread.getCpuCount() catch 1;
+    const options = b.addOptions();
+    options.addOption(usize, "cpu_count", cpu_count);
+
     const mod = b.addModule("powereg", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
+    mod.addOptions("build_options", options);
 
     const exe = b.addExecutable(.{
         .name = "powereg",
@@ -22,7 +31,7 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         }),
     });
-    exe.addObjectFile(.{ .cwd_relative = "/usr/lib/libudev.so" });
+    exe.addObjectFile(.{ .cwd_relative = "/usr/lib/libudev.so" }); // TODO: better way/fix udev import
 
     b.installArtifact(exe);
 

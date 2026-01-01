@@ -20,9 +20,9 @@ pub fn main() !void {
     defer std.debug.assert(gpa.deinit() == .ok);
     const allocator = gpa.allocator();
 
-    var system_state = try powereg.SystemState.init(allocator);
+    var system_state = try powereg.SystemState.init();
     try system_state.post_init();
-    defer system_state.deinit(allocator);
+    defer system_state.deinit();
 
     if (!system_state.linux) {
         std.debug.print("{s}\n",
