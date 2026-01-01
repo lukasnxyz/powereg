@@ -8,14 +8,25 @@ Currently only supports AMD cpus. If you have an Intel cpu and would like to exp
 Todo
 ----
 - [ ] print messages toggle with debug flag (develop a nice macro for this)
-- [ ] get number of cpu cores at compile time?
-    - [ ] try and remove use of allocator?
 - [ ] auto enable amd_pstate on cpu_states setup
 - [ ] make aur package
 - [ ] start/stop bluetooth
 - [X] config file for battery thresholds
 - [X] print messages with color (green, yellow, red)
-- [ ] allocator.free(var) on everything I fucking forgot wow.
+- [X] allocator.free(var) on everything I fucking forgot wow.
+- [ ] get number of cpu cores at compile time?
+    - try and remove use of allocator?
+    - something like:
+        const cpu_count = b.option(
+            usize,
+            "cpu-count",
+            "Number of CPU cores (auto-detected if not specified)",
+        ) orelse std.Thread.getCpuCount() catch 1;
+        const options = b.addOptions();
+        options.addOption(usize, "cpu_count", cpu_count);
+        exe.root_module.addOptions("build_options", options);
+    - zig build               # auto-detects
+    - zig build -Dcpu-count=8 # manual
 
 Getting started
 ---------------

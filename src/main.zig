@@ -17,7 +17,7 @@ pub fn main() !void {
     }
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    defer std.debug.assert(gpa.deinit() == .ok);
     const allocator = gpa.allocator();
 
     var system_state = try powereg.SystemState.init(allocator);
@@ -59,8 +59,14 @@ pub fn main() !void {
             while (true) {
                 std.debug.print("\x1B[2J\x1B[1;1H", .{});
                 try system_state.print();
+
+                // TODO: listen for 'q' to quit out
+
                 const event = try poller.poll_events();
                 try powereg.EventPoller.handle_event(event, &system_state);
+
+                std.Thread.sleep(2 * std.time.ns_per_s);
+                break;
             }
         },
         .monitor => {
@@ -107,9 +113,6 @@ pub fn main() !void {
             try uninstall_daemon(allocator);
         },
     }
-
-    const leaks = gpa.detectLeaks();
-    std.debug.print("leaks: {any}", .{leaks});
 }
 
 fn parseArg(comptime EnumType: type) !EnumType {

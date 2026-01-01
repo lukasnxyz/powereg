@@ -543,24 +543,24 @@ pub const CpuStates = struct {
             .cpu_freq = cpu_freq,
             .cpu_temp = try PersFd.init("/sys/class/thermal/thermal_zone0/temp", false),
             .cpu_load = try PersFd.init("/proc/stat", false),
-            //.cpu_load = undefined,
             .cpu_power_draw = try PersFd.init("/sys/class/powercap/intel-rapl:0/energy_uj", false),
         };
     }
 
     pub fn deinit(self: *@This(), allocator: Allocator) void {
-        for (self.scaling_governer.items, self.epp.items, self.min_cpu_freq.items, self.max_cpu_freq.items, self.cpu_freq.items) |*sg, *epp, *micf, *macf, *cf| {
-            sg.deinit();
-            epp.deinit();
-            micf.deinit();
-            macf.deinit();
-            cf.deinit();
-        }
-
+        for (self.scaling_governer.items) |*item| item.deinit();
         self.scaling_governer.deinit(allocator);
+
+        for (self.epp.items) |*item| item.deinit();
         self.epp.deinit(allocator);
+
+        for (self.min_cpu_freq.items) |*item| item.deinit();
         self.min_cpu_freq.deinit(allocator);
+
+        for (self.max_cpu_freq.items) |*item| item.deinit();
         self.max_cpu_freq.deinit(allocator);
+
+        for (self.cpu_freq.items) |*item| item.deinit();
         self.cpu_freq.deinit(allocator);
 
         self.cpu_turbo_boost.deinit();
