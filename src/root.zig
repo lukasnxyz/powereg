@@ -265,7 +265,7 @@ pub const SystemState = struct {
 
     pub fn set_powersave_mode(self: *@This()) !void {
         try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
-        try self.cpu_states.set_epp(EPP.Power);
+        try self.cpu_states.set_amd_epp(EPP.Power);
         try self.battery_states.set_platform_profile(PlatformProfile.LowPower);
         try self.cpu_states.set_cpu_turbo_boost(0);
     }
@@ -273,11 +273,11 @@ pub const SystemState = struct {
     pub fn set_balanced_mode(self: *@This()) !void {
         if (try self.battery_states.read_charging_status() != ChargingStatus.Charging) {
             try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
-            try self.cpu_states.set_epp(EPP.Power);
+            try self.cpu_states.set_amd_epp(EPP.Power);
             try self.battery_states.set_platform_profile(PlatformProfile.LowPower);
         } else {
             try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
-            try self.cpu_states.set_epp(EPP.BalancePower);
+            try self.cpu_states.set_amd_epp(EPP.BalancePower);
             try self.battery_states.set_platform_profile(PlatformProfile.Balanced);
         }
 
@@ -289,7 +289,7 @@ pub const SystemState = struct {
             return;
 
         try self.cpu_states.set_scaling_governer(ScalingGoverner.Performance);
-        try self.cpu_states.set_epp(EPP.Performance);
+        try self.cpu_states.set_amd_epp(EPP.Performance);
         try self.battery_states.set_platform_profile(PlatformProfile.Performance);
         try self.cpu_states.set_cpu_turbo_boost(1);
     }
@@ -451,46 +451,37 @@ pub const CpuStatesError = error{
     InvalidEPPVal,
     InvalidCpuCount,
     InvalidAMDPstate,
+    UnsupportedCpuType,
 };
 pub const CpuStates = struct {
     cpu_type: CpuType,
     scaling_governer: [N_CPUS]PersFd,
-    epp: [N_CPUS]PersFd,
-    cpu_turbo_boost: PersFd,
     min_cpu_freq: [N_CPUS]PersFd,
     max_cpu_freq: [N_CPUS]PersFd,
-    cpu_freq: [N_CPUS]PersFd, // TODO: possibly wrong (not same as btop)
+    cpu_freq: [N_CPUS]PersFd,
     cpu_temp: PersFd,
-    cpu_load: PersFd, // TODO: possibly wrong
-    cpu_power_draw: PersFd,
+    cpu_load: PersFd,
+    cpu_turbo_boost: PersFd,
 
-    // TODO: a good way to split this would be via just having strings for amd and intel
-    //      for specific paths and having those be dynamic
+    amd_epp: ?[N_CPUS]PersFd,
+    cpu_power_draw: ?PersFd,
+
     pub fn init(cpu_type: CpuType) !@This() {
         if (N_CPUS != try std.Thread.getCpuCount()) {
             std.debug.print("# of cpu cores on the build system not the same as on the run system!\n", .{});
             return error.InvalidCpuCount;
         }
 
-        var available_scaling_govs =
-            try PersFd.init("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false);
-        var amd_pstate_status =
-            try PersFd.init("/sys/devices/system/cpu/amd_pstate/status", false);
-
-        // TODO: don't check exact string, just if contains "performance" and "powersave"
-        if (!mem.eql(u8, try available_scaling_govs.read_value(), "performance powersave")) {
+        var available_asgr = try PersFd.init("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false);
+        const asgr = try available_asgr.read_value();
+        if ((mem.indexOf(u8, asgr, "performance") == null) or
+            (mem.indexOf(u8, asgr, "powersave") == null))
+        {
             std.debug.print("Incorrect available scaling governer options!", .{});
             return error.InvalidScalingGovVal;
         }
 
-        // TODO: check contains active
-        if (!mem.eql(u8, try amd_pstate_status.read_value(), "active")) {
-            std.debug.print("amd_pstate is not active!", .{});
-            return error.InvalidAMDPstate;
-        }
-
         var scaling_governer: [N_CPUS]PersFd = undefined;
-        var epp: [N_CPUS]PersFd = undefined;
         var cpu_freq: [N_CPUS]PersFd = undefined;
         var max_cpu_freq: [N_CPUS]PersFd = undefined;
         var min_cpu_freq: [N_CPUS]PersFd = undefined;
@@ -499,9 +490,6 @@ pub const CpuStates = struct {
         for (0..N_CPUS) |i| {
             const scaling_gov_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{d}/cpufreq/scaling_governor", .{i});
             scaling_governer[i] = try PersFd.init(scaling_gov_path, true);
-
-            const epp_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", .{i});
-            epp[i] = try PersFd.init(epp_path, true);
 
             const cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", .{i});
             cpu_freq[i] = try PersFd.init(cpu_freq_path, false);
@@ -513,32 +501,67 @@ pub const CpuStates = struct {
             max_cpu_freq[i] = try PersFd.init(max_cpu_freq_path, true);
         }
 
+        // ------------------
+
+        var amd_epp: ?[N_CPUS]PersFd = null;
+        var cpu_power_draw: ?PersFd = null;
+        if (cpu_type == CpuType.AMD) {
+            var amd_pstate = try PersFd.init("/sys/devices/system/cpu/amd_pstate/status", true);
+            const r_amd_pstate = try amd_pstate.read_value();
+            if (mem.indexOf(u8, r_amd_pstate, "active") == null) {
+                std.debug.print("amd_pstate is not active!\n", .{});
+                std.debug.print("Attempting to set amd_pstate to 'active'\n", .{});
+                amd_pstate.set_value("active") catch |e| {
+                    std.debug.print("Failed setting amd_pstate to 'active': {any}\n", .{e});
+                    return error.InvalidAMDPstate;
+                };
+            }
+
+            var s_amd_epp: [N_CPUS]PersFd = undefined;
+            for (0..N_CPUS) |i| {
+                const epp_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", .{i});
+                s_amd_epp[i] = try PersFd.init(epp_path, true);
+            }
+            amd_epp = s_amd_epp;
+
+            cpu_power_draw = try PersFd.init("/sys/class/powercap/intel-rapl:0/energy_uj", false);
+        } else if (cpu_type == CpuType.Intel) {
+            return error.UnsupportedCpuType;
+        } else {
+            return error.UnsupportedCpuType;
+        }
+
         return .{
             .cpu_type = cpu_type,
             .scaling_governer = scaling_governer,
-            .epp = epp,
-            .cpu_turbo_boost = try PersFd.init("/sys/devices/system/cpu/cpufreq/boost", true),
             .min_cpu_freq = min_cpu_freq,
             .max_cpu_freq = max_cpu_freq,
             .cpu_freq = cpu_freq,
             .cpu_temp = try PersFd.init("/sys/class/thermal/thermal_zone0/temp", false),
             .cpu_load = try PersFd.init("/proc/stat", false),
-            .cpu_power_draw = try PersFd.init("/sys/class/powercap/intel-rapl:0/energy_uj", false),
+            .cpu_turbo_boost = try PersFd.init("/sys/devices/system/cpu/cpufreq/boost", true),
+
+            .amd_epp = amd_epp,
+            .cpu_power_draw = cpu_power_draw,
         };
     }
 
     pub fn deinit(self: *@This()) void {
         for (0..N_CPUS) |i| {
             self.scaling_governer[i].deinit();
-            self.epp[i].deinit();
             self.min_cpu_freq[i].deinit();
             self.max_cpu_freq[i].deinit();
             self.cpu_freq[i].deinit();
         }
+        if (self.amd_epp) |*amd_epp| {
+            for (0..N_CPUS) |i| amd_epp[i].deinit();
+        }
+
         self.cpu_turbo_boost.deinit();
         self.cpu_temp.deinit();
         self.cpu_load.deinit();
-        self.cpu_power_draw.deinit();
+
+        if (self.cpu_power_draw) |*pdraw| pdraw.deinit();
     }
 
     pub fn print(self: *@This()) !void {
@@ -546,7 +569,7 @@ pub const CpuStates = struct {
             \\CPU:
             \\  cpu type: {any}
             \\  scaling governer: {any}
-            \\  epp: {any}
+            \\  amd epp: {any}
             \\  cpu turbo boost: {d:.2}
             \\  min/max cpu freq: {d:.2}-{d:.2} GHz
             \\  cpu freq: {d:.2} GHz
@@ -559,7 +582,7 @@ pub const CpuStates = struct {
         std.debug.print(output, .{
             self.cpu_type,
             try self.read_scaling_governer(),
-            try self.read_epp(),
+            try self.read_amd_epp(),
             try self.read_cpu_turbo_boost(),
             try self.read_min_cpu_freq(),
             try self.read_max_cpu_freq(),
@@ -594,30 +617,35 @@ pub const CpuStates = struct {
         }
     }
 
-    pub fn read_epp(self: *@This()) !EPP {
-        const gov = EPP.from_string(try self.epp[0].read_value());
-        assert(gov != EPP.Unknown);
+    pub fn read_amd_epp(self: *@This()) !EPP {
+        if (self.amd_epp) |*amd_epp| {
+            const gov = EPP.from_string(try amd_epp[0].read_value());
+            assert(gov != EPP.Unknown);
 
-        for (1..N_CPUS) |i| {
-            const val = EPP.from_string(try self.epp[i].read_value());
-            assert(gov == val);
+            for (1..N_CPUS) |i|
+                assert(gov == EPP.from_string(try amd_epp[i].read_value()));
+
+            return gov;
         }
-
-        return gov;
+        return EPP.Unknown;
     }
 
-    pub fn set_epp(self: *@This(), epp: EPP) !void {
-        const write = switch (epp) {
-            EPP.Default => EPP.DEFAULT,
-            EPP.Performance => EPP.PERFORMANCE,
-            EPP.BalancePerformance => EPP.BALANCE_PERFORMANCE,
-            EPP.BalancePower => EPP.BALANCE_POWER,
-            EPP.Power => EPP.POWER,
-            else => return error.InvalidEPPVal,
-        };
+    pub fn set_amd_epp(self: *@This(), epp: EPP) !void {
+        if (self.amd_epp) |*amd_epp| {
+            const write = switch (epp) {
+                EPP.Default => EPP.DEFAULT,
+                EPP.Performance => EPP.PERFORMANCE,
+                EPP.BalancePerformance => EPP.BALANCE_PERFORMANCE,
+                EPP.BalancePower => EPP.BALANCE_POWER,
+                EPP.Power => EPP.POWER,
+                else => return error.InvalidEPPVal,
+            };
 
-        for (0..N_CPUS) |i| {
-            try self.epp[i].set_value(write);
+            for (0..N_CPUS) |i|
+                try amd_epp[i].set_value(write);
+        } else {
+            std.debug.print("{s}\n", .{StrCol.red("set_amd_epp: can't set because cpu_type != .AMD")});
+            return;
         }
     }
 
@@ -754,25 +782,28 @@ pub const CpuStates = struct {
     }
 
     pub fn read_cpu_power_draw(self: *@This()) !f32 {
-        const start = try std.fmt.parseInt(u64, try self.cpu_power_draw.read_value(), 10);
-        const start_time = std.time.milliTimestamp();
+        if (self.cpu_power_draw) |*cpu_power_draw| {
+            const start = try std.fmt.parseInt(u64, try cpu_power_draw.read_value(), 10);
+            const start_time = std.time.milliTimestamp();
 
-        std.Thread.sleep(500 * std.time.ns_per_ms);
+            std.Thread.sleep(500 * std.time.ns_per_ms);
 
-        const end = try std.fmt.parseInt(u64, try self.cpu_power_draw.read_value(), 10);
-        const end_time = std.time.milliTimestamp();
+            const end = try std.fmt.parseInt(u64, try cpu_power_draw.read_value(), 10);
+            const end_time = std.time.milliTimestamp();
 
-        // wrapped around or invalid read
-        if (end < start) return 0.0;
+            // wrapped around or invalid read
+            if (end < start) return 0.0;
 
-        const energy_delta_uj = end - start;
-        const time_delta_ms = @as(f32, @floatFromInt(end_time - start_time));
+            const energy_delta_uj = end - start;
+            const time_delta_ms = @as(f32, @floatFromInt(end_time - start_time));
 
-        // convert: (microjoules / milliseconds) * 1000 = milliwatts, then / 1000 = watts
-        //  -> microjoules / milliseconds / 1000
-        const watts = (@as(f32, @floatFromInt(energy_delta_uj)) / time_delta_ms) / 1000.0;
+            // convert: (microjoules / milliseconds) * 1000 = milliwatts, then / 1000 = watts
+            //  -> microjoules / milliseconds / 1000
+            const watts = (@as(f32, @floatFromInt(energy_delta_uj)) / time_delta_ms) / 1000.0;
 
-        return watts;
+            return watts;
+        }
+        return 0.0;
     }
 };
 
@@ -836,6 +867,9 @@ pub const BatteryStates = struct {
     platform_profile: PersFd,
 
     pub fn init() !@This() {
+        // TODO: search /sys/class/power_supply/ and search for BAT* and choose the highest number
+        //      note: doesn't work for something like thinkpad with 2 batteries
+        //      note: if no BAT* then means on desktop and should crash program with according error
         return .{
             .battery_charging_status = try BatteryStates.load_charging_status(),
             .battery_capacity = try PersFd.init("/sys/class/power_supply/BAT0/capacity", false),
