@@ -246,9 +246,9 @@ pub const SystemState = struct {
     pub fn post_init(self: *@This()) !void {
         const status = try self.battery_states.read_charging_status();
         switch (status) {
-            ChargingStatus.Charging => return self.set_powersave_mode(),
-            ChargingStatus.DisCharging => return self.set_balanced_mode(),
-            ChargingStatus.Unknown => return self.set_performance_mode(),
+            ChargingStatus.Charging => return self.set_performance_mode(),
+            ChargingStatus.DisCharging => return self.set_powersave_mode(),
+            ChargingStatus.Unknown => return self.set_balanced_mode(),
         }
     }
 
@@ -331,7 +331,7 @@ pub const SystemState = struct {
     }
 
     fn detect_cpu_via_cpuid() ?CpuType {
-        if (builtin.cpu.arch != .x86 or builtin.cpu.arch != .x86_64)
+        if (builtin.cpu.arch != .x86 and builtin.cpu.arch != .x86_64)
             return null;
 
         var eax: u32 = undefined;
@@ -449,8 +449,9 @@ pub const EPP = enum {
 pub const CpuStatesError = error{
     InvalidScalingGovVal,
     InvalidEPPVal,
+    InvalidCpuCount,
+    InvalidAMDPstate,
 };
-
 pub const CpuStates = struct {
     cpu_type: CpuType,
     scaling_governer: [N_CPUS]PersFd,
@@ -461,24 +462,31 @@ pub const CpuStates = struct {
     cpu_freq: [N_CPUS]PersFd, // TODO: possibly wrong (not same as btop)
     cpu_temp: PersFd,
     cpu_load: PersFd, // TODO: possibly wrong
-    cpu_power_draw: PersFd, // TODO: possibly wrong
+    cpu_power_draw: PersFd,
 
     // TODO: a good way to split this would be via just having strings for amd and intel
     //      for specific paths and having those be dynamic
     pub fn init(cpu_type: CpuType) !@This() {
+        if (N_CPUS != try std.Thread.getCpuCount()) {
+            std.debug.print("# of cpu cores on the build system not the same as on the run system!\n", .{});
+            return error.InvalidCpuCount;
+        }
+
         var available_scaling_govs =
             try PersFd.init("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false);
         var amd_pstate_status =
             try PersFd.init("/sys/devices/system/cpu/amd_pstate/status", false);
 
+        // TODO: don't check exact string, just if contains "performance" and "powersave"
         if (!mem.eql(u8, try available_scaling_govs.read_value(), "performance powersave")) {
-            std.debug.print("correct options for scaling governers", .{});
+            std.debug.print("Incorrect available scaling governer options!", .{});
             return error.InvalidScalingGovVal;
         }
 
+        // TODO: check contains active
         if (!mem.eql(u8, try amd_pstate_status.read_value(), "active")) {
-            std.debug.print("amd_pstate is active", .{});
-            return error.InvalidScalingGovVal;
+            std.debug.print("amd_pstate is not active!", .{});
+            return error.InvalidAMDPstate;
         }
 
         var scaling_governer: [N_CPUS]PersFd = undefined;
@@ -669,6 +677,7 @@ pub const CpuStates = struct {
         return temp / 1000;
     }
 
+    // TODO: better way to do this?
     pub fn read_cpu_load(self: *@This()) !f64 {
         const proc_stat = try self.cpu_load.read_value();
         var line_iter = mem.splitScalar(u8, proc_stat, '\n');
@@ -733,6 +742,8 @@ pub const CpuStates = struct {
         const total_delta = @max(@as(i64, @intCast(now_total)) - @as(i64, @intCast(prev_total)), 1);
         const idle_delta = @as(i64, @intCast(now_idle)) - @as(i64, @intCast(prev_idle));
 
+        if (total_delta == 0) return 0.0;
+
         const load_percent = if (total_delta > 0) blk: {
             const busy_delta = total_delta - idle_delta;
             const busy_clamped = @max(busy_delta, 0);
@@ -744,12 +755,23 @@ pub const CpuStates = struct {
 
     pub fn read_cpu_power_draw(self: *@This()) !f32 {
         const start = try std.fmt.parseInt(u64, try self.cpu_power_draw.read_value(), 10);
+        const start_time = std.time.milliTimestamp();
 
         std.Thread.sleep(500 * std.time.ns_per_ms);
 
         const end = try std.fmt.parseInt(u64, try self.cpu_power_draw.read_value(), 10);
+        const end_time = std.time.milliTimestamp();
 
-        const watts = @as(f32, @floatFromInt(end - start)) / 1_000_000.0;
+        // wrapped around or invalid read
+        if (end < start) return 0.0;
+
+        const energy_delta_uj = end - start;
+        const time_delta_ms = @as(f32, @floatFromInt(end_time - start_time));
+
+        // convert: (microjoules / milliseconds) * 1000 = milliwatts, then / 1000 = watts
+        //  -> microjoules / milliseconds / 1000
+        const watts = (@as(f32, @floatFromInt(energy_delta_uj)) / time_delta_ms) / 1000.0;
+
         return watts;
     }
 };
@@ -940,7 +962,6 @@ pub const Config = struct {
     fn get_config_path(allocator: Allocator, buffer: []u8) ![]u8 {
         var env_map = try std.process.getEnvMap(allocator);
         defer env_map.deinit();
-        //defer allocator.free(env_map);
 
         if (env_map.get("SUDO_USER")) |sudo_user| {
             return try std.fmt.bufPrint(
@@ -989,5 +1010,24 @@ pub const Config = struct {
 
         try system_state.battery_states.set_charge_start_threshold(self.battery_start_threshold);
         std.debug.print("Battery charge start threshold set to {}\n", .{self.battery_start_threshold});
+    }
+};
+
+pub const StrCol = struct {
+    const reset = "\x1b[0m";
+    const red_code = "\x1b[31m";
+    const green_code = "\x1b[32m";
+    const yellow_code = "\x1b[33m";
+
+    pub fn red(comptime s: []const u8) []const u8 {
+        return red_code ++ s ++ reset;
+    }
+
+    pub fn green(comptime s: []const u8) []const u8 {
+        return green_code ++ s ++ reset;
+    }
+
+    pub fn yellow(comptime s: []const u8) []const u8 {
+        return yellow_code ++ s ++ reset;
     }
 };

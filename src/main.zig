@@ -2,6 +2,7 @@ const std = @import("std");
 const powereg = @import("powereg");
 const mem = std.mem;
 const fs = std.fs;
+const StrCol = powereg.StrCol;
 
 const LOOP_DURATION = 5;
 const SERVICE_NAME = "powereg";
@@ -20,7 +21,10 @@ pub fn main() !void {
     defer std.debug.assert(gpa.deinit() == .ok);
     const allocator = gpa.allocator();
 
-    var system_state = try powereg.SystemState.init();
+    var system_state = powereg.SystemState.init() catch |e| {
+        std.debug.print("Error while setting up system state: {any}", .{e});
+        return;
+    };
     try system_state.post_init();
     defer system_state.deinit();
 
@@ -36,11 +40,13 @@ pub fn main() !void {
         return;
     }
 
-    const config = try powereg.Config.init(allocator);
-    std.debug.print("config => {any}\n", .{config});
-    try config.apply(&system_state); //catch |e| {
-    //    std.debug.print("Error while applying config: {any}", .{e});
-    //};
+    if (powereg.Config.init(allocator)) |cfg| {
+        cfg.apply(&system_state) catch |e| {
+            std.debug.print("Error while applying config: {any}.\n", .{e});
+        };
+    } else |e| {
+        std.debug.print("Failed finding/reading config file: {any}\n", .{e});
+    }
 
     const ArgType = enum { live, monitor, daemon, install, uninstall };
     const arg_type = try parseArg(ArgType);
@@ -59,14 +65,9 @@ pub fn main() !void {
             while (true) {
                 std.debug.print("\x1B[2J\x1B[1;1H", .{});
                 try system_state.print();
-
                 // TODO: listen for 'q' to quit out
-
                 const event = try poller.poll_events();
                 try powereg.EventPoller.handle_event(event, &system_state);
-
-                std.Thread.sleep(2 * std.time.ns_per_s);
-                break;
             }
         },
         .monitor => {
@@ -194,7 +195,6 @@ pub fn install_daemon(allocator: mem.Allocator) !void {
         \\[Unit]
         \\Description=PowerEG - Power Management Daemon
         \\After=network.target
-        \\Documentation=man:{s}(8)
         \\
         \\[Service]
         \\Type=simple
@@ -217,7 +217,7 @@ pub fn install_daemon(allocator: mem.Allocator) !void {
         \\[Install]
         \\WantedBy=multi-user.target
         \\
-    , .{ SERVICE_NAME, BINARY_PATH, RUN_FLAG, SERVICE_NAME });
+    , .{ BINARY_PATH, RUN_FLAG, SERVICE_NAME });
     defer allocator.free(service_file);
 
     const file = fs.cwd().createFile(SERVICE_PATH, .{}) catch |err| {
@@ -388,22 +388,3 @@ fn check_installed_power_tools(allocator: mem.Allocator) !bool {
 
     return conflicts_found;
 }
-
-const StrCol = struct {
-    const reset = "\x1b[0m";
-    const red_code = "\x1b[31m";
-    const green_code = "\x1b[32m";
-    const yellow_code = "\x1b[33m";
-
-    pub fn red(comptime s: []const u8) []const u8 {
-        return red_code ++ s ++ reset;
-    }
-
-    pub fn green(comptime s: []const u8) []const u8 {
-        return green_code ++ s ++ reset;
-    }
-
-    pub fn yellow(comptime s: []const u8) []const u8 {
-        return yellow_code ++ s ++ reset;
-    }
-};

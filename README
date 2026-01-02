@@ -7,10 +7,12 @@ Currently only supports AMD cpus. If you have an Intel cpu and would like to exp
 
 Todo
 ----
-- [ ] print messages toggle with debug flag (develop a nice macro for this)
 - [ ] auto enable amd_pstate on cpu_states setup
+- [ ] split amd and intel
 - [ ] make aur package
-- [ ] start/stop bluetooth
+- [ ] tests somehow?
+- [ ] auto start/stop bluetooth
+    - bluetoothctl power off/on
 - [X] config file for battery thresholds
 - [X] print messages with color (green, yellow, red)
 - [X] allocator.free(var) on everything I fucking forgot wow.
