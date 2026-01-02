@@ -21,12 +21,10 @@ Todo
 
 Getting started
 ---------------
-For AMD cpus, make sure that '/sys/devices/system/cpu/amd_pstate/status' is set to active
-
 ./install.sh
 sudo powereg --install
 
-You can configure powereg via '~/.config/powereg/config.toml'.
+You can configure powereg via '~/.config/powereg/powereg.conf'.
 
 Options
 --------
