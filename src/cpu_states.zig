@@ -294,8 +294,6 @@ pub const CpuStates = struct {
         return @as(f32, @floatFromInt(prev)) / 1_000_000.0;
     }
 
-    ////pub fn set_min_cpu_freq(&self) -> io::Result<usize> {}
-
     // GHz
     pub fn read_max_cpu_freq(self: *@This()) !f32 {
         const prev = try std.fmt.parseInt(usize, try self.max_cpu_freq[0].read_value(), 10);
@@ -307,8 +305,6 @@ pub const CpuStates = struct {
 
         return @as(f32, @floatFromInt(prev)) / 1_000_000.0;
     }
-
-    ////pub fn set_max_cpu_freq(&mut self) -> io::Result<usize> {}
 
     // celcius
     pub fn read_cpu_temp(self: *@This()) !usize {
