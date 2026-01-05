@@ -264,9 +264,9 @@ pub const CpuStates = struct {
         return try std.fmt.parseInt(u8, try self.cpu_boost.read_value(), 10) == 1;
     }
 
-    pub fn set_cpu_boost(self: *@This(), boost: u8) !void {
+    pub fn set_cpu_boost(self: *@This(), boost: bool) !void {
         var buf: [3]u8 = undefined;
-        const str = try std.fmt.bufPrint(&buf, "{}", .{boost});
+        const str = try std.fmt.bufPrint(&buf, "{}", .{@intFromBool(boost)});
         try self.cpu_boost.set_value(str);
     }
 

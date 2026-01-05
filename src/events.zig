@@ -142,28 +142,40 @@ pub const EventPoller = struct {
         };
     }
 
-    fn periodic_check(system_state: *SystemState) !Event {
+    fn periodic_check(system_state: *SystemState, cpu_load: f64) !Event {
+        const low_battery = try system_state.battery_states.read_battery_capacity() <= 20;
+        if (low_battery) return .LowBattery;
+
         const charging_status = try system_state.battery_states.read_charging_status();
-        if (charging_status == .DisCharging) return .PowerUnPlug;
-        if (charging_status == .Charging or charging_status == .NotCharging) return .PowerInPlug;
+        const discharging = charging_status == .DisCharging;
 
-        const load = try system_state.cpu_states.read_cpu_load();
-        if (load >= HIGH_CPU_LOAD) return .HighCpuLoad;
-        if (load < LOW_CPU_LOAD) return .LowCpuLoad;
+        const boost = try system_state.cpu_states.read_cpu_boost();
+        const high_cpu_load = cpu_load >= HIGH_CPU_LOAD;
+        const low_cpu_load = cpu_load < LOW_CPU_LOAD;
 
-        return Event.Unknown;
+        if (high_cpu_load and !discharging and !boost) {
+            return .HighCpuLoad;
+        } else if (low_cpu_load and !discharging and boost) {
+            return .LowCpuLoad;
+        }
+
+        if (discharging) return .PowerUnPlug;
+        if (!discharging) return .PowerInPlug;
+
+        return .Unknown;
     }
 
     pub fn handle_event(i_event: Event, system_state: *SystemState) !void {
-        const event = EventPoller.periodic_check(system_state) catch i_event;
+        const cpu_load = try system_state.cpu_states.read_cpu_load();
+        const event = EventPoller.periodic_check(system_state, cpu_load) catch i_event;
 
         const old_state = system_state.state;
         EventPoller.state_transition(event, system_state);
         const new_state = system_state.state;
 
-        if (new_state == State.Performance) {
-            const needs_boost = try system_state.cpu_states.read_cpu_load() >= HIGH_CPU_LOAD;
-            try system_state.set_performance_mode(needs_boost);
+        // in its own branch because cpu boost may change depending on cpu load
+        if (new_state == .Performance) {
+            try system_state.set_performance_mode(cpu_load >= HIGH_CPU_LOAD);
             return;
         }
 
