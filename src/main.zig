@@ -13,8 +13,7 @@ const RUN_FLAG = "--daemon";
 
 pub fn main() !void {
     if (!(std.posix.getuid() == 0)) {
-        std.debug.print("{s}\n",
-            .{StrCol.red("Powereg needs to be run with root privilege (sudo)")});
+        std.debug.print("{s}\n", .{StrCol.red("Powereg needs to be run with root privilege (sudo)")});
         return;
     }
 
@@ -26,18 +25,16 @@ pub fn main() !void {
         std.debug.print("Error while setting up system state: {any}", .{e});
         return;
     };
-    try system_state.post_init();
+    try system_state.postInit();
     defer system_state.deinit();
 
     if (!system_state.linux) {
-        std.debug.print("{s}\n",
-            .{StrCol.red("Powereg is only made for Linux systems!")});
+        std.debug.print("{s}\n", .{StrCol.red("Powereg is only made for Linux systems!")});
         return;
     }
 
     if (system_state.cpu_type != powereg.CpuType.AMD) {
-        std.debug.print("{s}\n",
-            .{StrCol.red("Currently only supporting AMD cpus!")});
+        std.debug.print("{s}\n", .{StrCol.red("Currently only supporting AMD cpus!")});
         return;
     }
 
@@ -53,11 +50,9 @@ pub fn main() !void {
     const arg_type = try parseArg(ArgType);
     switch (arg_type) {
         .live => {
-            if (try check_running_daemon_mode(allocator)) {
-                std.debug.print("{s}\n",
-                    .{StrCol.yellow("Powereg is already running in daemon mode!")});
-                std.debug.print("\t{s}\n",
-                    .{StrCol.yellow("use 'sudo powereg --monitor'")});
+            if (try checkRunningDaemonMode(allocator)) {
+                std.debug.print("{s}\n", .{StrCol.yellow("Powereg is already running in daemon mode!")});
+                std.debug.print("\t{s}\n", .{StrCol.yellow("use 'sudo powereg --monitor'")});
                 return;
             }
 
@@ -67,16 +62,14 @@ pub fn main() !void {
                 std.debug.print("\x1B[2J\x1B[1;1H", .{});
                 try system_state.print();
                 // TODO: listen for 'q' to quit out
-                const event = try poller.poll_events();
-                try powereg.EventPoller.handle_event(event, &system_state);
+                const event = try poller.pollEvents();
+                try powereg.EventPoller.handleEvent(event, &system_state);
             }
         },
         .monitor => {
-            if (!try check_running_daemon_mode(allocator)) {
-                std.debug.print("{s}\n",
-                    .{StrCol.yellow("Powereg is not running in daemon mode!")});
-                std.debug.print("\t{s}\n",
-                    .{StrCol.yellow("use 'sudo powereg --install'")});
+            if (!try checkRunningDaemonMode(allocator)) {
+                std.debug.print("{s}\n", .{StrCol.yellow("Powereg is not running in daemon mode!")});
+                std.debug.print("\t{s}\n", .{StrCol.yellow("use 'sudo powereg --install'")});
             }
 
             var poller = try powereg.EventPoller.init(LOOP_DURATION);
@@ -84,34 +77,32 @@ pub fn main() !void {
             while (true) {
                 std.debug.print("\x1B[2J\x1B[1;1H", .{});
                 try system_state.print();
-                _ = try poller.poll_events();
+                _ = try poller.pollEvents();
             }
         },
         .daemon => {
             var poller = try powereg.EventPoller.init(LOOP_DURATION);
             defer poller.deinit();
             while (true) {
-                const event = try poller.poll_events();
-                try powereg.EventPoller.handle_event(event, &system_state);
+                const event = try poller.pollEvents();
+                try powereg.EventPoller.handleEvent(event, &system_state);
             }
         },
         .install => {
-            if (try check_running_daemon_mode(allocator)) {
-                std.debug.print("{s}\n",
-                    .{StrCol.yellow("Powereg is already running in daemon mode!")});
+            if (try checkRunningDaemonMode(allocator)) {
+                std.debug.print("{s}\n", .{StrCol.yellow("Powereg is already running in daemon mode!")});
                 return;
             }
 
-            try install_daemon(allocator);
+            try installDaemon(allocator);
         },
         .uninstall => {
-            if (!try check_running_daemon_mode(allocator)) {
-                std.debug.print("{s}\n",
-                    .{StrCol.yellow("Powereg is not running in daemon mode!")});
+            if (!try checkRunningDaemonMode(allocator)) {
+                std.debug.print("{s}\n", .{StrCol.yellow("Powereg is not running in daemon mode!")});
                 return;
             }
 
-            try uninstall_daemon(allocator);
+            try uninstallDaemon(allocator);
         },
     }
 }
@@ -127,8 +118,7 @@ fn parseArg(comptime EnumType: type) !EnumType {
         arg_count += 1;
 
         if (!mem.startsWith(u8, arg, "--")) {
-            std.debug.print("{s} {s}\n",
-                .{StrCol.red("Error: Argument must start with '--', got:"), arg});
+            std.debug.print("{s} {s}\n", .{ StrCol.red("Error: Argument must start with '--', got:"), arg });
             return error.InvalidArgumentFormat;
         }
 
@@ -136,13 +126,12 @@ fn parseArg(comptime EnumType: type) !EnumType {
 
         if (std.meta.stringToEnum(EnumType, arg_name)) |value| {
             if (found_arg != null) {
-                std.debug.print("{s}\n",
-                    .{StrCol.red("Error: Multiple arguments provided. Only one is allowed.")});
+                std.debug.print("{s}\n", .{StrCol.red("Error: Multiple arguments provided. Only one is allowed.")});
                 return error.TooManyArguments;
             }
             found_arg = value;
         } else {
-            std.debug.print("{s} '--{s}'\n", .{StrCol.red("Error: Invalid argument"), arg_name});
+            std.debug.print("{s} '--{s}'\n", .{ StrCol.red("Error: Invalid argument"), arg_name });
             std.debug.print("Valid options: ", .{});
             inline for (@typeInfo(EnumType).@"enum".fields, 0..) |field, i| {
                 if (i > 0) std.debug.print(", ", .{});
@@ -167,7 +156,7 @@ fn parseArg(comptime EnumType: type) !EnumType {
     }
 }
 
-pub fn check_running_daemon_mode(allocator: mem.Allocator) !bool {
+pub fn checkRunningDaemonMode(allocator: mem.Allocator) !bool {
     std.debug.print("{s}\n", .{StrCol.yellow("Running 'systemctl is-active powereg'")});
 
     const result = try std.process.Child.run(.{
@@ -188,8 +177,8 @@ pub fn check_running_daemon_mode(allocator: mem.Allocator) !bool {
     }
 }
 
-pub fn install_daemon(allocator: mem.Allocator) !void {
-    _ = check_installed_power_tools(allocator) catch false;
+pub fn installDaemon(allocator: mem.Allocator) !void {
+    _ = checkInstalledPowerTools(allocator) catch false;
 
     const service_file = try std.fmt.allocPrint(allocator,
         \\[Unit]
@@ -237,8 +226,7 @@ pub fn install_daemon(allocator: mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
-        std.debug.print("{s} {s}\n",
-            .{StrCol.red("systemctl daemon-reload failed:"), result.stderr});
+        std.debug.print("{s} {s}\n", .{ StrCol.red("systemctl daemon-reload failed:"), result.stderr });
         return error.SystemctlFailed;
     }
 
@@ -251,8 +239,7 @@ pub fn install_daemon(allocator: mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
-        std.debug.print("{s} {s}\n",
-            .{StrCol.red("systemctl enable failed:"), result.stderr});
+        std.debug.print("{s} {s}\n", .{ StrCol.red("systemctl enable failed:"), result.stderr });
         return error.SystemctlFailed;
     }
 
@@ -265,15 +252,14 @@ pub fn install_daemon(allocator: mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
-        std.debug.print("{s} {s}\n",
-            .{StrCol.red("systemctl start failed:"), result.stderr});
+        std.debug.print("{s} {s}\n", .{ StrCol.red("systemctl start failed:"), result.stderr });
         return error.SystemctlFailed;
     }
 
     std.debug.print("{s}\n", .{StrCol.green("Powereg succesfully installed and started via systemd!")});
 }
 
-pub fn uninstall_daemon(allocator: mem.Allocator) !void {
+pub fn uninstallDaemon(allocator: mem.Allocator) !void {
     std.debug.print("{s}\n", .{StrCol.yellow("Running 'systemctl disable powereg'")});
     var result = try std.process.Child.run(.{
         .allocator = allocator,
@@ -283,8 +269,7 @@ pub fn uninstall_daemon(allocator: mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
-        std.debug.print("{s} {s}\n",
-            .{StrCol.red("systemctl disable failed:"), result.stderr});
+        std.debug.print("{s} {s}\n", .{ StrCol.red("systemctl disable failed:"), result.stderr });
     }
 
     std.debug.print("{s}\n", .{StrCol.yellow("Running 'systemctl stop powereg'")});
@@ -296,8 +281,7 @@ pub fn uninstall_daemon(allocator: mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
-        std.debug.print("{s} {s}\n",
-            .{StrCol.red("systemctl stop failed:"), result.stderr});
+        std.debug.print("{s} {s}\n", .{ StrCol.red("systemctl stop failed:"), result.stderr });
     }
 
     fs.cwd().deleteFile(SERVICE_PATH) catch |err| {
@@ -314,15 +298,14 @@ pub fn uninstall_daemon(allocator: mem.Allocator) !void {
     defer allocator.free(result.stderr);
 
     if (result.term.Exited != 0) {
-        std.debug.print("{s} {s}\n",
-            .{StrCol.red("systemctl daemon-reload failed:"), result.stderr});
+        std.debug.print("{s} {s}\n", .{ StrCol.red("systemctl daemon-reload failed:"), result.stderr });
         return error.SystemctlFailed;
     }
 
     std.debug.print("{s}\n", .{StrCol.green("Powereg uninstalled successfully!")});
 }
 
-fn check_installed_power_tools(allocator: mem.Allocator) !bool {
+fn checkInstalledPowerTools(allocator: mem.Allocator) !bool {
     const services = [_][]const u8{
         "power-profiles-daemon.service",
         "tlp.service",
@@ -342,10 +325,10 @@ fn check_installed_power_tools(allocator: mem.Allocator) !bool {
         const status_str = mem.trim(u8, result.stdout, &std.ascii.whitespace);
 
         if (mem.eql(u8, status_str, "active")) {
-            std.debug.print("{s} {s}\n", .{StrCol.yellow("Found running service:"), service});
+            std.debug.print("{s} {s}\n", .{ StrCol.yellow("Found running service:"), service });
             conflicts_found = true;
 
-            std.debug.print("\t{s} {s}...\n", .{StrCol.yellow("Attempting to stop"), service});
+            std.debug.print("\t{s} {s}...\n", .{ StrCol.yellow("Attempting to stop"), service });
             const stop_result = std.process.Child.run(.{
                 .allocator = allocator,
                 .argv = &[_][]const u8{ "systemctl", "stop", service },
@@ -363,7 +346,7 @@ fn check_installed_power_tools(allocator: mem.Allocator) !bool {
                 continue;
             }
 
-            std.debug.print("\t{s} {s}...\n", .{StrCol.yellow("Attempting to disable"), service});
+            std.debug.print("\t{s} {s}...\n", .{ StrCol.yellow("Attempting to disable"), service });
             const disable_result = std.process.Child.run(.{
                 .allocator = allocator,
                 .argv = &[_][]const u8{ "systemctl", "disable", service },

@@ -3,14 +3,14 @@ const std = @import("std");
 const mem = std.mem;
 const OpenFlags = std.fs.File.OpenFlags;
 
-pub const PersFdError = error { InvalidFilePermsErr };
+pub const PersFdError = error{InvalidFilePermsErr};
 pub const PersFd = struct {
     file: std.fs.File,
     write: bool,
     buffer: [512]u8 = undefined,
 
     pub fn init(path: []const u8, write: bool) !@This() {
-        const flags = if (write) OpenFlags { .mode = .read_write } else OpenFlags { .mode = .read_only };
+        const flags = if (write) OpenFlags{ .mode = .read_write } else OpenFlags{ .mode = .read_only };
         const file = try std.fs.cwd().openFile(path, flags);
         return PersFd{
             .file = file,
@@ -23,7 +23,7 @@ pub const PersFd = struct {
         self.file.close();
     }
 
-    pub fn read_value(self: *@This()) ![]const u8 {
+    pub fn readValue(self: *@This()) ![]const u8 {
         // TODO: readAll here is very dangerous with buffer[512] for /proc/stat
         try self.file.seekTo(0);
         @memset(&self.buffer, 0);
@@ -32,7 +32,7 @@ pub const PersFd = struct {
         return mem.trim(u8, raw_content, &std.ascii.whitespace);
     }
 
-    pub fn set_value(self: @This(), value: []const u8) !void {
+    pub fn setValue(self: @This(), value: []const u8) !void {
         if (!self.write) {
             return error.InvalidFilePermsErr;
         }

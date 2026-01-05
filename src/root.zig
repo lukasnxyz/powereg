@@ -15,52 +15,39 @@ pub const StrCol = l_utils.StrCol;
 pub const CpuType = l_cpu_states.CpuType;
 pub const EventPoller = l_events.EventPoller;
 
-pub const ConfigError = error { InvalidThresholds };
+pub const ConfigError = error{InvalidThresholds};
 pub const Config = struct {
     battery_stop_threshold: u8,
     battery_start_threshold: u8,
 
     pub fn init(allocator: Allocator) !@This() {
         var buffer: [128]u8 = undefined;
-        const path = try Config.get_config_path(allocator, &buffer);
+        const path = try Config.getConfigPath(allocator, &buffer);
         std.debug.print("path: {s}\n", .{path});
-        return try parse_file(allocator, path);
+        return try parseFile(allocator, path);
     }
 
-    fn get_config_path(allocator: Allocator, buffer: []u8) ![]u8 {
+    fn getConfigPath(allocator: Allocator, buffer: []u8) ![]u8 {
         var env_map = try std.process.getEnvMap(allocator);
         defer env_map.deinit();
 
         if (env_map.get("SUDO_USER")) |sudo_user| {
-            return try std.fmt.bufPrint(
-                buffer,
-                "/home/{s}/.config/powereg/powereg.conf",
-                .{sudo_user}
-            );
+            return try std.fmt.bufPrint(buffer, "/home/{s}/.config/powereg/powereg.conf", .{sudo_user});
         }
 
         if (env_map.get("HOME")) |home| {
-            return try std.fmt.bufPrint(
-                buffer,
-                "{s}/.config/powereg/powereg.conf",
-                .{home}
-            );
+            return try std.fmt.bufPrint(buffer, "{s}/.config/powereg/powereg.conf", .{home});
         }
 
         return error.EnvironmentError;
     }
 
-    fn parse_file(allocator: Allocator, path: []const u8) !@This() {
+    fn parseFile(allocator: Allocator, path: []const u8) !@This() {
         var fd = try PersFd.init(path, false);
         defer fd.deinit();
-        const text = try fd.read_value();
+        const text = try fd.readValue();
 
-        const parsed = try std.json.parseFromSlice(
-            @This(),
-            allocator,
-            text,
-            .{}
-        );
+        const parsed = try std.json.parseFromSlice(@This(), allocator, text, .{});
         defer parsed.deinit();
 
         return parsed.value;
@@ -73,10 +60,10 @@ pub const Config = struct {
         if (self.battery_start_threshold > self.battery_stop_threshold)
             return ConfigError.InvalidThresholds;
 
-        try system_state.battery_states.set_charge_stop_threshold(self.battery_stop_threshold);
+        try system_state.battery_states.setChargeStopThreshold(self.battery_stop_threshold);
         std.debug.print("Battery charge stop threshold set to {}\n", .{self.battery_stop_threshold});
 
-        try system_state.battery_states.set_charge_start_threshold(self.battery_start_threshold);
+        try system_state.battery_states.setChargeStartThreshold(self.battery_start_threshold);
         std.debug.print("Battery charge start threshold set to {}\n", .{self.battery_start_threshold});
     }
 };

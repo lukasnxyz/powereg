@@ -32,8 +32,7 @@ pub const EventPoller = struct {
     pub fn init(interval_s: u64) !@This() {
         const udev = c.udev_new() orelse return error.UdevInitFailed;
         errdefer _ = c.udev_unref(udev);
-        const monitor = c.udev_monitor_new_from_netlink(udev, "udev")
-            orelse return error.MonitorCreationFailed;
+        const monitor = c.udev_monitor_new_from_netlink(udev, "udev") orelse return error.MonitorCreationFailed;
         errdefer _ = c.udev_monitor_unref(monitor);
 
         _ = c.udev_monitor_filter_add_match_subsystem_devtype(monitor, "power_supply", null);
@@ -52,7 +51,7 @@ pub const EventPoller = struct {
         _ = c.udev_unref(self.udev);
     }
 
-    pub fn poll_events(self: *@This()) !Event {
+    pub fn pollEvents(self: *@This()) !Event {
         const now = try std.time.Instant.now();
         const elapsed = now.since(self.last_periodic_check);
 
@@ -86,7 +85,7 @@ pub const EventPoller = struct {
                 const name = c.udev_device_get_property_value(dev, "POWER_SUPPLY_NAME");
                 if (name) |n| {
                     const name_str = mem.span(n);
-                    if (is_ac_adapter(name_str)) {
+                    if (isAcAdapter(name_str)) {
                         const online = c.udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
                         if (online) |o| {
                             const online_str = mem.span(o);
@@ -101,7 +100,7 @@ pub const EventPoller = struct {
         return Event.Unknown;
     }
 
-    fn is_ac_adapter(name: []const u8) bool {
+    fn isAcAdapter(name: []const u8) bool {
         const adapters = [_][]const u8{ "ACAD", "AC", "ADP1", "AC0" };
         for (adapters) |a| {
             if (mem.eql(u8, name, a)) return true;
@@ -109,7 +108,7 @@ pub const EventPoller = struct {
         return false;
     }
 
-    fn state_transition(event: Event, system_state: *SystemState) void {
+    fn stateTransition(event: Event, system_state: *SystemState) void {
         const old_state = system_state.state;
         system_state.state = switch (old_state) {
             .Performance => switch (event) {
@@ -142,14 +141,14 @@ pub const EventPoller = struct {
         };
     }
 
-    fn periodic_check(system_state: *SystemState, cpu_load: f64) !Event {
-        const low_battery = try system_state.battery_states.read_battery_capacity() <= 20;
+    fn periodicCheck(system_state: *SystemState, cpu_load: f64) !Event {
+        const low_battery = try system_state.battery_states.readBatteryCapacity() <= 20;
         if (low_battery) return .LowBattery;
 
-        const charging_status = try system_state.battery_states.read_charging_status();
+        const charging_status = try system_state.battery_states.readChargingStatus();
         const discharging = charging_status == .DisCharging;
 
-        const boost = try system_state.cpu_states.read_cpu_boost();
+        const boost = try system_state.cpu_states.readCpuBoost();
         const high_cpu_load = cpu_load >= HIGH_CPU_LOAD;
         const low_cpu_load = cpu_load < LOW_CPU_LOAD;
 
@@ -165,24 +164,24 @@ pub const EventPoller = struct {
         return .Unknown;
     }
 
-    pub fn handle_event(i_event: Event, system_state: *SystemState) !void {
-        const cpu_load = try system_state.cpu_states.read_cpu_load();
-        const event = EventPoller.periodic_check(system_state, cpu_load) catch i_event;
+    pub fn handleEvent(i_event: Event, system_state: *SystemState) !void {
+        const cpu_load = try system_state.cpu_states.readCpuLoad();
+        const event = EventPoller.periodicCheck(system_state, cpu_load) catch i_event;
 
         const old_state = system_state.state;
-        EventPoller.state_transition(event, system_state);
+        EventPoller.stateTransition(event, system_state);
         const new_state = system_state.state;
 
         // in its own branch because cpu boost may change depending on cpu load
         if (new_state == .Performance) {
-            try system_state.set_performance_mode(cpu_load >= HIGH_CPU_LOAD);
+            try system_state.setPerformanceMode(cpu_load >= HIGH_CPU_LOAD);
             return;
         }
 
         if (old_state != new_state) {
             switch (new_state) {
-                .Powersave => try system_state.set_powersave_mode(),
-                .Balanced => try system_state.set_balanced_mode(),
+                .Powersave => try system_state.setPowersaveMode(),
+                .Balanced => try system_state.setBalancedMode(),
                 .Performance => unreachable,
             }
         }

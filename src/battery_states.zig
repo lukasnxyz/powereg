@@ -16,7 +16,7 @@ pub const ChargingStatus = enum {
     const DISCHARGING: []const u8 = "Discharging";
     const NOTCHARGING: []const u8 = "Not charging";
 
-    pub fn from_string(s: []const u8) @This() {
+    pub fn fromString(s: []const u8) @This() {
         if (mem.eql(u8, CHARGING, s)) {
             return ChargingStatus.Charging;
         } else if (mem.eql(u8, DISCHARGING, s)) {
@@ -39,7 +39,7 @@ pub const PlatformProfile = enum {
     const BALANCED: []const u8 = "balanced";
     const PERFORMANCE: []const u8 = "performance";
 
-    pub fn from_string(s: []const u8) @This() {
+    pub fn fromString(s: []const u8) @This() {
         if (mem.eql(u8, LOW_POWER, s)) {
             return PlatformProfile.LowPower;
         } else if (mem.eql(u8, BALANCED, s)) {
@@ -51,7 +51,7 @@ pub const PlatformProfile = enum {
         }
     }
 
-    pub fn to_string(pp: PlatformProfile) []const u8 {
+    pub fn toString(pp: PlatformProfile) []const u8 {
         switch (pp) {
             PlatformProfile.LowPower => return PlatformProfile.LOW_POWER,
             PlatformProfile.Balanced => return PlatformProfile.BALANCED,
@@ -105,12 +105,12 @@ pub const BatteryStates = struct {
         ;
 
         std.debug.print(output, .{
-            try self.read_charging_status(),
-            try self.read_battery_capacity(),
-            try self.read_charge_stop_threshold(),
-            try self.read_charge_start_threshold(),
-            try self.read_total_power_draw(),
-            try self.read_platform_profile(),
+            try self.readChargingStatus(),
+            try self.readBatteryCapacity(),
+            try self.readChargeStopThreshold(),
+            try self.readChargeStartThreshold(),
+            try self.readTotalPowerDraw(),
+            try self.readPlatformProfile(),
         });
     }
 
@@ -141,45 +141,45 @@ pub const BatteryStates = struct {
     //    return error.FileNotFound;
     //}
 
-    pub fn read_charging_status(self: *@This()) !ChargingStatus {
-        return ChargingStatus.from_string(try self.battery_charging_status.read_value());
+    pub fn readChargingStatus(self: *@This()) !ChargingStatus {
+        return ChargingStatus.fromString(try self.battery_charging_status.readValue());
     }
 
-    pub fn read_battery_capacity(self: *@This()) !u8 {
-        return std.fmt.parseInt(u8, try self.battery_capacity.read_value(), 10);
+    pub fn readBatteryCapacity(self: *@This()) !u8 {
+        return std.fmt.parseInt(u8, try self.battery_capacity.readValue(), 10);
     }
 
-    pub fn read_charge_stop_threshold(self: *@This()) !u8 {
-        return std.fmt.parseInt(u8, try self.charge_stop_threshold.read_value(), 10);
+    pub fn readChargeStopThreshold(self: *@This()) !u8 {
+        return std.fmt.parseInt(u8, try self.charge_stop_threshold.readValue(), 10);
     }
 
-    pub fn set_charge_stop_threshold(self: *@This(), stop: u8) !void {
+    pub fn setChargeStopThreshold(self: *@This(), stop: u8) !void {
         var buffer: [5]u8 = undefined;
         const string = try std.fmt.bufPrint(&buffer, "{d}", .{stop});
-        try self.charge_stop_threshold.set_value(string);
+        try self.charge_stop_threshold.setValue(string);
     }
 
-    pub fn read_charge_start_threshold(self: *@This()) !u8 {
-        return std.fmt.parseInt(u8, try self.charge_start_threshold.read_value(), 10);
+    pub fn readChargeStartThreshold(self: *@This()) !u8 {
+        return std.fmt.parseInt(u8, try self.charge_start_threshold.readValue(), 10);
     }
 
-    pub fn set_charge_start_threshold(self: *@This(), start: u8) !void {
+    pub fn setChargeStartThreshold(self: *@This(), start: u8) !void {
         var buffer: [5]u8 = undefined;
         const string = try std.fmt.bufPrint(&buffer, "{d}", .{start});
-        try self.charge_start_threshold.set_value(string);
+        try self.charge_start_threshold.setValue(string);
     }
 
-    pub fn read_total_power_draw(self: *@This()) !f32 {
-        const power_uw = try std.fmt.parseFloat(f32, try self.total_power_draw.read_value());
+    pub fn readTotalPowerDraw(self: *@This()) !f32 {
+        const power_uw = try std.fmt.parseFloat(f32, try self.total_power_draw.readValue());
         const watts = power_uw / 1_000_000.0;
         return watts;
     }
 
-    pub fn read_platform_profile(self: *@This()) !PlatformProfile {
-        return PlatformProfile.from_string(try self.platform_profile.read_value());
+    pub fn readPlatformProfile(self: *@This()) !PlatformProfile {
+        return PlatformProfile.fromString(try self.platform_profile.readValue());
     }
 
-    pub fn set_platform_profile(self: *@This(), pp: PlatformProfile) !void {
-        try self.platform_profile.set_value(pp.to_string());
+    pub fn setPlatformProfile(self: *@This(), pp: PlatformProfile) !void {
+        try self.platform_profile.setValue(pp.toString());
     }
 };

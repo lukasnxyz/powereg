@@ -16,7 +16,7 @@ const ChargingStatus = l_battery_states.ChargingStatus;
 const PersFd = l_utils.PersFd;
 
 pub const State = enum { Powersave, Balanced, Performance };
-pub const SystemStateError = error { InvalidAcpiType };
+pub const SystemStateError = error{InvalidAcpiType};
 pub const SystemState = struct {
     linux: bool,
     cpu_type: CpuType,
@@ -28,30 +28,30 @@ pub const SystemState = struct {
     state: State,
 
     pub fn init() !@This() {
-        const cpu_type = SystemState.detect_cpu_type();
+        const cpu_type = SystemState.detectCpuType();
         return .{
-            .linux = SystemState.detect_linux(),
+            .linux = SystemState.detectLinux(),
             .cpu_type = cpu_type,
-            .acpi_type = try SystemState.detect_acpi_type(),
+            .acpi_type = try SystemState.detectAcpiType(),
             .cpu_states = try CpuStates.init(cpu_type),
             .battery_states = try BatteryStates.init(),
             .state = .Powersave,
         };
     }
 
-    pub fn post_init(self: *@This()) !void {
-        const status = try self.battery_states.read_charging_status();
+    pub fn postInit(self: *@This()) !void {
+        const status = try self.battery_states.readChargingStatus();
         switch (status) {
             ChargingStatus.Charging, ChargingStatus.NotCharging => {
-                try self.set_performance_mode(false);
+                try self.setPerformanceMode(false);
                 self.state = .Performance;
             },
             ChargingStatus.DisCharging => {
-                try self.set_powersave_mode();
+                try self.setPowersaveMode();
                 self.state = .Powersave;
             },
             ChargingStatus.Unknown => {
-                try self.set_powersave_mode();
+                try self.setPowersaveMode();
                 self.state = .Powersave;
             },
         }
@@ -68,32 +68,32 @@ pub const SystemState = struct {
         std.debug.print("State: {any}\n", .{self.state});
     }
 
-    pub fn set_powersave_mode(self: *@This()) !void {
-        try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
-        try self.cpu_states.set_amd_epp(AmdEPP.Power);
-        try self.battery_states.set_platform_profile(PlatformProfile.LowPower);
-        try self.cpu_states.set_cpu_boost(false);
+    pub fn setPowersaveMode(self: *@This()) !void {
+        try self.cpu_states.setScalingGoverner(ScalingGoverner.Powersave);
+        try self.cpu_states.setAmdEpp(AmdEPP.Power);
+        try self.battery_states.setPlatformProfile(PlatformProfile.LowPower);
+        try self.cpu_states.setCpuBoost(false);
     }
 
     // for now, only for high cpu temp situations when charging
-    pub fn set_balanced_mode(self: *@This()) !void {
-        try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
-        try self.cpu_states.set_amd_epp(AmdEPP.BalancePower);
-        try self.battery_states.set_platform_profile(PlatformProfile.Balanced);
-        try self.cpu_states.set_cpu_boost(false);
+    pub fn setBalancedMode(self: *@This()) !void {
+        try self.cpu_states.setScalingGoverner(ScalingGoverner.Powersave);
+        try self.cpu_states.setAmdEpp(AmdEPP.BalancePower);
+        try self.battery_states.setPlatformProfile(PlatformProfile.Balanced);
+        try self.cpu_states.setCpuBoost(false);
     }
 
-    pub fn set_performance_mode(self: *@This(), enable_boost: bool) !void {
-        if (try self.battery_states.read_charging_status() == ChargingStatus.DisCharging)
+    pub fn setPerformanceMode(self: *@This(), enable_boost: bool) !void {
+        if (try self.battery_states.readChargingStatus() == ChargingStatus.DisCharging)
             return;
 
-        try self.cpu_states.set_scaling_governer(ScalingGoverner.Performance);
-        try self.cpu_states.set_amd_epp(AmdEPP.Performance);
-        try self.battery_states.set_platform_profile(PlatformProfile.Performance);
-        try self.cpu_states.set_cpu_boost(enable_boost);
+        try self.cpu_states.setScalingGoverner(ScalingGoverner.Performance);
+        try self.cpu_states.setAmdEpp(AmdEPP.Performance);
+        try self.battery_states.setPlatformProfile(PlatformProfile.Performance);
+        try self.cpu_states.setCpuBoost(enable_boost);
     }
 
-    fn detect_linux() bool {
+    fn detectLinux() bool {
         const compile_time = if (builtin.os.tag == .linux) true else false;
         const proc_exists = if (std.fs.cwd().access("/proc", .{})) true else |_| false;
         const sys_exists = if (std.fs.cwd().access("/sys", .{})) true else |_| false;
@@ -106,10 +106,10 @@ pub const SystemState = struct {
         return compile_time or (proc_exists and sys_exists) or (proc_exists and sys_exists and etc_exists and has_os_release);
     }
 
-    fn detect_cpu_type() CpuType {
+    fn detectCpuType() CpuType {
         var fd = PersFd.init("/proc/cpuinfo", false) catch
             return CpuType.Unknown;
-        const val = fd.read_value() catch
+        const val = fd.readValue() catch
             return CpuType.Unknown;
 
         var line_iter = mem.splitScalar(u8, val, '\n');
@@ -123,13 +123,13 @@ pub const SystemState = struct {
             }
         }
 
-        if (detect_cpu_via_cpuid()) |cpu_type|
+        if (detectCpuViaCpuid()) |cpu_type|
             return cpu_type;
 
         return CpuType.Unknown;
     }
 
-    fn detect_cpu_via_cpuid() ?CpuType {
+    fn detectCpuViaCpuid() ?CpuType {
         if (builtin.cpu.arch != .x86 and builtin.cpu.arch != .x86_64)
             return null;
 
@@ -145,8 +145,7 @@ pub const SystemState = struct {
               [_ecx] "={ecx}" (ecx),
               [_edx] "={edx}" (edx),
             : [leaf] "{eax}" (@as(u32, 0)),
-            : .{ .memory = true }
-        );
+            : .{ .memory = true });
 
         var vendor: [12]u8 = undefined;
         @memcpy(vendor[0..4], mem.asBytes(&ebx));
@@ -162,13 +161,13 @@ pub const SystemState = struct {
         return null;
     }
 
-    fn detect_acpi_type() !AcpiType {
+    fn detectAcpiType() !AcpiType {
         const thinkpad = "thinkpad";
         const ideapad = "ideapad";
 
         var pv = try PersFd.init("/sys/class/dmi/id/product_version", false);
         defer pv.deinit();
-        if (pv.read_value()) |product_version| {
+        if (pv.readValue()) |product_version| {
             const trimmed = mem.trim(u8, product_version, &std.ascii.whitespace);
             var lowered: [pv.buffer.len]u8 = undefined;
             _ = std.ascii.lowerString(&lowered, trimmed);
@@ -179,7 +178,7 @@ pub const SystemState = struct {
 
         var pn = try PersFd.init("/sys/class/dmi/id/product_name", false);
         defer pn.deinit();
-        if (pn.read_value()) |product_name| {
+        if (pn.readValue()) |product_name| {
             const trimmed = mem.trim(u8, product_name, &std.ascii.whitespace);
             var lowered: [pv.buffer.len]u8 = undefined;
             _ = std.ascii.lowerString(&lowered, trimmed);

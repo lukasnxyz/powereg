@@ -12,7 +12,7 @@ Todo
 - [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
 - [ ] nicer --live/--monitor cli view/updating
 - [ ] used debug allocator or remove need for it in (only in Config now)
-- [ ] proper naming scheme (camel case for functions, snake case for variables, pascal case for types)
+- [X] proper naming scheme (camel case for functions, snake case for variables, pascal case for types)
 - [X] split into multiple source files
 - [X] read charging status from battery not acto be able to read 'not charging' as well
 - [X] properly optimized balanced/performance mode on charging/ac
