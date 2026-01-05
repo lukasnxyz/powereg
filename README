@@ -11,6 +11,11 @@ Todo
 - [ ] tests somehow?
 - [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
 - [ ] split into multiple source files
+- [ ] nicer --live/--monitor cli view/updating
+- [ ] used debug allocator or remove need for it in (only in Config now)
+- [ ] read charging status from battery not acto be able to read 'not charging' as well
+- [ ] properly optimized balanced/performance mode on charging/ac
+    - better switch between balanced/perf mode as well as boost on/off when
 - [X] auto enable amd_pstate on cpu_states setup
 - [X] split amd and intel
 - [X] config file for battery thresholds
@@ -19,12 +24,6 @@ Todo
 - [X] get number of cpu cores at compile time?
     - try and remove use of allocator?
     - zig build auto-detects, zig build -Dcpu-count=8 manual
-
-- [ ] read through these
-    - https://rocm.docs.amd.com/projects/amdsmi/en/amd-staging/doxygen/docBin/html/group__tagPowerControl.html
-    - https://kernel.org/doc/html/latest/driver-api/pm/index.html
-    - https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/08_Processor_Configuration_and_Control/processor-power-states.html
-    - https://kernel.org/doc/html/v6.1/admin-guide/pm/amd-pstate.html
 
 Getting started
 ---------------
