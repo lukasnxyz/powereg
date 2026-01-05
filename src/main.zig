@@ -4,6 +4,7 @@ const powereg = @import("powereg");
 const mem = std.mem;
 const fs = std.fs;
 const StrCol = powereg.StrCol;
+const SystemState = powereg.SystemState;
 
 const LOOP_DURATION = 5;
 const SERVICE_NAME = "powereg";
@@ -33,19 +34,6 @@ pub fn main() !void {
         return;
     }
 
-    if (system_state.cpu_type != powereg.CpuType.AMD) {
-        std.debug.print("{s}\n", .{StrCol.red("Currently only supporting AMD cpus!")});
-        return;
-    }
-
-    if (powereg.Config.init(allocator)) |cfg| {
-        cfg.apply(&system_state) catch |e| {
-            std.debug.print("Error while applying config: {any}.\n", .{e});
-        };
-    } else |e| {
-        std.debug.print("Failed finding/reading config file: {any}\n", .{e});
-    }
-
     const ArgType = enum { live, monitor, daemon, install, uninstall };
     const arg_type = try parseArg(ArgType);
     switch (arg_type) {
@@ -55,6 +43,8 @@ pub fn main() !void {
                 std.debug.print("\t{s}\n", .{StrCol.yellow("use 'sudo powereg --monitor'")});
                 return;
             }
+
+            configSetup(allocator, &system_state);
 
             var poller = try powereg.EventPoller.init(LOOP_DURATION);
             defer poller.deinit();
@@ -81,6 +71,8 @@ pub fn main() !void {
             }
         },
         .daemon => {
+            configSetup(allocator, &system_state);
+
             var poller = try powereg.EventPoller.init(LOOP_DURATION);
             defer poller.deinit();
             while (true) {
@@ -93,6 +85,8 @@ pub fn main() !void {
                 std.debug.print("{s}\n", .{StrCol.yellow("Powereg is already running in daemon mode!")});
                 return;
             }
+
+            configSetup(allocator, &system_state);
 
             try installDaemon(allocator);
         },
@@ -156,7 +150,18 @@ fn parseArg(comptime EnumType: type) !EnumType {
     }
 }
 
-pub fn checkRunningDaemonMode(allocator: mem.Allocator) !bool {
+fn configSetup(allocator: std.mem.Allocator, system_state: *SystemState) void {
+    if (powereg.Config.init(allocator)) |cfg| {
+        cfg.apply(system_state) catch |e| {
+            std.debug.print("Error while applying config: {any}.\n", .{e});
+        };
+    } else |e| {
+        std.debug.print("Failed finding/reading config file: {any}\n", .{e});
+    }
+
+}
+
+fn checkRunningDaemonMode(allocator: mem.Allocator) !bool {
     std.debug.print("{s}\n", .{StrCol.yellow("Running 'systemctl is-active powereg'")});
 
     const result = try std.process.Child.run(.{
@@ -177,7 +182,7 @@ pub fn checkRunningDaemonMode(allocator: mem.Allocator) !bool {
     }
 }
 
-pub fn installDaemon(allocator: mem.Allocator) !void {
+fn installDaemon(allocator: mem.Allocator) !void {
     _ = checkInstalledPowerTools(allocator) catch false;
 
     const service_file = try std.fmt.allocPrint(allocator,
@@ -259,7 +264,7 @@ pub fn installDaemon(allocator: mem.Allocator) !void {
     std.debug.print("{s}\n", .{StrCol.green("Powereg succesfully installed and started via systemd!")});
 }
 
-pub fn uninstallDaemon(allocator: mem.Allocator) !void {
+fn uninstallDaemon(allocator: mem.Allocator) !void {
     std.debug.print("{s}\n", .{StrCol.yellow("Running 'systemctl disable powereg'")});
     var result = try std.process.Child.run(.{
         .allocator = allocator,
