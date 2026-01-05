@@ -13,11 +13,9 @@ pub const Event = enum {
     PowerUnPlug,
 
     PeriodicCheck,
-
     LowBattery,
-    HighCpuTemp,
     HighCpuLoad,
-    LoadNormalized,
+    LowCpuLoad,
 
     Unknown,
 };
@@ -27,6 +25,9 @@ pub const EventPoller = struct {
     monitor: *c.udev_monitor,
     last_periodic_check: std.time.Instant,
     periodic_interval_ns: u64,
+
+    const HIGH_CPU_LOAD = 45.0;
+    const LOW_CPU_LOAD = 40.0;
 
     pub fn init(interval_s: u64) !@This() {
         const udev = c.udev_new() orelse return error.UdevInitFailed;
@@ -116,8 +117,8 @@ pub const EventPoller = struct {
                 .PowerUnPlug => .Powersave,
                 .LowBattery => .Powersave,
 
-                .HighCpuTemp => .Balanced,
-                .HighCpuLoad => .Balanced,
+                .HighCpuLoad => .Performance, // turn boost on
+                .LowCpuLoad => .Performance, // turn boost off when load drops
 
                 else => old_state,
             },
@@ -126,7 +127,8 @@ pub const EventPoller = struct {
                 .PowerUnPlug => .Powersave,
                 .LowBattery => .Powersave,
 
-                .LoadNormalized => .Performance,
+                .HighCpuLoad => .Performance, // turn boost on
+                .LowCpuLoad => .Performance,
 
                 else => old_state,
             },
@@ -140,36 +142,49 @@ pub const EventPoller = struct {
         };
     }
 
-    fn periodic_check(system_state: *SystemState) !Event {
-        const low_battery_level = try system_state.battery_states.read_battery_capacity() <= 25;
-        const high_cpu_temp = try system_state.cpu_states.read_cpu_temp() >= 85;
-        const high_cpu_load = try system_state.cpu_states.read_cpu_load() >= 85.0;
-        const is_plugged_in = try system_state.battery_states.read_charging_status() == .Charging;
-        const current_state = system_state.state;
+    fn periodic_check(system_state: *SystemState, cpu_load: f64) !Event {
+        const low_battery = try system_state.battery_states.read_battery_capacity() <= 20;
+        if (low_battery) return .LowBattery;
 
-        const event = if (low_battery_level)
-            Event.LowBattery
-        else if (!is_plugged_in and (current_state == .Performance or current_state == .Balanced))
-            Event.PowerUnPlug
-        else if (is_plugged_in and current_state == .Powersave)
-            Event.PowerInPlug
-        else if (high_cpu_temp or high_cpu_load)
-            Event.HighCpuLoad
-        else if (is_plugged_in and current_state == .Balanced)
-            Event.LoadNormalized
-        else
-            Event.Unknown;
+        const charging_status = try system_state.battery_states.read_charging_status();
+        const discharging = charging_status == .DisCharging;
 
-        return event;
+        const boost = try system_state.cpu_states.read_cpu_boost();
+        const high_cpu_load = cpu_load >= HIGH_CPU_LOAD;
+        const low_cpu_load = cpu_load < LOW_CPU_LOAD;
+
+        if (high_cpu_load and !discharging and !boost) {
+            return .HighCpuLoad;
+        } else if (low_cpu_load and !discharging and boost) {
+            return .LowCpuLoad;
+        }
+
+        if (discharging) return .PowerUnPlug;
+        if (!discharging) return .PowerInPlug;
+
+        return .Unknown;
     }
 
     pub fn handle_event(i_event: Event, system_state: *SystemState) !void {
-        const event = EventPoller.periodic_check(system_state) catch i_event;
+        const cpu_load = try system_state.cpu_states.read_cpu_load();
+        const event = EventPoller.periodic_check(system_state, cpu_load) catch i_event;
+
+        const old_state = system_state.state;
         EventPoller.state_transition(event, system_state);
-        switch (system_state.state) {
-            State.Powersave => try system_state.set_powersave_mode(),
-            State.Balanced => try system_state.set_balanced_mode(),
-            State.Performance => try system_state.set_performance_mode(),
+        const new_state = system_state.state;
+
+        // in its own branch because cpu boost may change depending on cpu load
+        if (new_state == .Performance) {
+            try system_state.set_performance_mode(cpu_load >= HIGH_CPU_LOAD);
+            return;
+        }
+
+        if (old_state != new_state) {
+            switch (new_state) {
+                .Powersave => try system_state.set_powersave_mode(),
+                .Balanced => try system_state.set_balanced_mode(),
+                .Performance => unreachable,
+            }
         }
     }
 };

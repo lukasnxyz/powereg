@@ -9,16 +9,20 @@ pub const AcpiType = enum { ThinkPad, IdeaPad, Unknown };
 pub const ChargingStatus = enum {
     Charging,
     DisCharging,
+    NotCharging,
     Unknown,
 
-    const CHARGING: []const u8 = "1";
-    const DISCHARGING: []const u8 = "0";
+    const CHARGING: []const u8 = "Charging";
+    const DISCHARGING: []const u8 = "Discharging";
+    const NOTCHARGING: []const u8 = "Not charging";
 
     pub fn from_string(s: []const u8) @This() {
         if (mem.eql(u8, CHARGING, s)) {
             return ChargingStatus.Charging;
         } else if (mem.eql(u8, DISCHARGING, s)) {
             return ChargingStatus.DisCharging;
+        } else if (mem.eql(u8, NOTCHARGING, s)) {
+            return ChargingStatus.NotCharging;
         } else {
             return ChargingStatus.Unknown;
         }
@@ -70,7 +74,7 @@ pub const BatteryStates = struct {
         //      note: doesn't work for something like thinkpad with 2 batteries
         //      note: if no BAT* then means on desktop and should crash program with according error
         return .{
-            .battery_charging_status = try BatteryStates.load_charging_status(),
+            .battery_charging_status = try PersFd.init("/sys/class/power_supply/BAT0/status", false),
             .battery_capacity = try PersFd.init("/sys/class/power_supply/BAT0/capacity", false),
             .charge_stop_threshold = try PersFd.init("/sys/class/power_supply/BAT0/charge_stop_threshold", true),
             .charge_start_threshold = try PersFd.init("/sys/class/power_supply/BAT0/charge_start_threshold", true),
@@ -110,32 +114,32 @@ pub const BatteryStates = struct {
         });
     }
 
-    fn load_charging_status() !PersFd {
-        const base = "/sys/class/power_supply";
-        var dir = try std.fs.openDirAbsolute(base, .{ .iterate = true });
-        defer dir.close();
+    //fn load_charging_status() !PersFd {
+    //    const base = "/sys/class/power_supply";
+    //    var dir = try std.fs.openDirAbsolute(base, .{ .iterate = true });
+    //    defer dir.close();
 
-        var it = dir.iterate();
-        while (try it.next()) |entry| {
-            if (entry.kind != .sym_link) continue;
+    //    var it = dir.iterate();
+    //    while (try it.next()) |entry| {
+    //        if (entry.kind != .sym_link) continue;
 
-            if (mem.startsWith(u8, entry.name, "AC") or
-                mem.startsWith(u8, entry.name, "ACAD"))
-            {
-                var power_dir = try dir.openDir(entry.name, .{});
-                defer power_dir.close();
+    //        if (mem.startsWith(u8, entry.name, "AC") or
+    //            mem.startsWith(u8, entry.name, "ACAD"))
+    //        {
+    //            var power_dir = try dir.openDir(entry.name, .{});
+    //            defer power_dir.close();
 
-                power_dir.access("online", .{}) catch continue;
+    //            power_dir.access("online", .{}) catch continue;
 
-                var final_path: [128]u8 = undefined;
-                const path_slice = try std.fmt.bufPrint(&final_path, "{s}/{s}/online", .{ base, entry.name });
+    //            var final_path: [128]u8 = undefined;
+    //            const path_slice = try std.fmt.bufPrint(&final_path, "{s}/{s}/online", .{ base, entry.name });
 
-                return PersFd.init(path_slice, false);
-            }
-        }
+    //            return PersFd.init(path_slice, false);
+    //        }
+    //    }
 
-        return error.FileNotFound;
-    }
+    //    return error.FileNotFound;
+    //}
 
     pub fn read_charging_status(self: *@This()) !ChargingStatus {
         return ChargingStatus.from_string(try self.battery_charging_status.read_value());

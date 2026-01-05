@@ -74,7 +74,7 @@ pub const CpuStates = struct {
     cpu_freq: [N_CPUS]PersFd,
     cpu_temp: PersFd,
     cpu_load: PersFd,
-    cpu_turbo_boost: PersFd,
+    cpu_boost: PersFd,
 
     amd_epp: ?[N_CPUS]PersFd,
     cpu_power_draw: ?PersFd,
@@ -150,7 +150,7 @@ pub const CpuStates = struct {
             .cpu_freq = cpu_freq,
             .cpu_temp = try PersFd.init("/sys/class/thermal/thermal_zone0/temp", false),
             .cpu_load = try PersFd.init("/proc/stat", false),
-            .cpu_turbo_boost = try PersFd.init("/sys/devices/system/cpu/cpufreq/boost", true),
+            .cpu_boost = try PersFd.init("/sys/devices/system/cpu/cpufreq/boost", true),
 
             .amd_epp = amd_epp,
             .cpu_power_draw = cpu_power_draw,
@@ -168,7 +168,7 @@ pub const CpuStates = struct {
             for (0..N_CPUS) |i| amd_epp[i].deinit();
         }
 
-        self.cpu_turbo_boost.deinit();
+        self.cpu_boost.deinit();
         self.cpu_temp.deinit();
         self.cpu_load.deinit();
 
@@ -181,7 +181,7 @@ pub const CpuStates = struct {
             \\  cpu type: {any}
             \\  scaling governer: {any}
             \\  amd epp: {any}
-            \\  cpu turbo boost: {d:.2}
+            \\  cpu turbo boost: {any}
             \\  min/max cpu freq: {d:.2}-{d:.2} GHz
             \\  cpu freq: {d:.2} GHz
             \\  cpu temp: {d:.2}°C
@@ -194,7 +194,7 @@ pub const CpuStates = struct {
             self.cpu_type,
             try self.read_scaling_governer(),
             try self.read_amd_epp(),
-            try self.read_cpu_turbo_boost(),
+            try self.read_cpu_boost(),
             try self.read_min_cpu_freq(),
             try self.read_max_cpu_freq(),
             try self.read_avg_cpu_freq(),
@@ -260,14 +260,14 @@ pub const CpuStates = struct {
         }
     }
 
-    pub fn read_cpu_turbo_boost(self: *@This()) !u8 {
-        return std.fmt.parseInt(u8, try self.cpu_turbo_boost.read_value(), 10);
+    pub fn read_cpu_boost(self: *@This()) !bool {
+        return try std.fmt.parseInt(u8, try self.cpu_boost.read_value(), 10) == 1;
     }
 
-    pub fn set_cpu_turbo_boost(self: *@This(), boost: u8) !void {
+    pub fn set_cpu_boost(self: *@This(), boost: bool) !void {
         var buf: [3]u8 = undefined;
-        const str = try std.fmt.bufPrint(&buf, "{}", .{boost});
-        try self.cpu_turbo_boost.set_value(str);
+        const str = try std.fmt.bufPrint(&buf, "{}", .{@intFromBool(boost)});
+        try self.cpu_boost.set_value(str);
     }
 
     // GHz
