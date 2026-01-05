@@ -18,7 +18,7 @@ pub fn main() !void {
         return;
     }
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
     const allocator = gpa.allocator();
 
@@ -77,7 +77,6 @@ pub fn main() !void {
                     .{StrCol.yellow("Powereg is not running in daemon mode!")});
                 std.debug.print("\t{s}\n",
                     .{StrCol.yellow("use 'sudo powereg --install'")});
-                return;
             }
 
             var poller = try powereg.EventPoller.init(LOOP_DURATION);

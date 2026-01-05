@@ -35,16 +35,25 @@ pub const SystemState = struct {
             .acpi_type = try SystemState.detect_acpi_type(),
             .cpu_states = try CpuStates.init(cpu_type),
             .battery_states = try BatteryStates.init(),
-            .state = State.Powersave,
+            .state = .Powersave,
         };
     }
 
     pub fn post_init(self: *@This()) !void {
         const status = try self.battery_states.read_charging_status();
         switch (status) {
-            ChargingStatus.Charging => return self.set_performance_mode(),
-            ChargingStatus.DisCharging => return self.set_powersave_mode(),
-            ChargingStatus.Unknown => return self.set_balanced_mode(),
+            ChargingStatus.Charging, ChargingStatus.NotCharging => {
+                self.state = .Performance;
+                return self.set_performance_mode(false);
+            },
+            ChargingStatus.DisCharging => {
+                self.state = .Powersave;
+                return self.set_powersave_mode();
+            },
+            ChargingStatus.Unknown => {
+                self.state = .Powersave;
+                return self.set_powersave_mode();
+            },
         }
     }
 
@@ -63,31 +72,25 @@ pub const SystemState = struct {
         try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
         try self.cpu_states.set_amd_epp(AmdEPP.Power);
         try self.battery_states.set_platform_profile(PlatformProfile.LowPower);
-        try self.cpu_states.set_cpu_turbo_boost(0);
+        try self.cpu_states.set_cpu_boost(0);
     }
 
+    // for now, only for high cpu temp situations when charging
     pub fn set_balanced_mode(self: *@This()) !void {
-        if (try self.battery_states.read_charging_status() != ChargingStatus.Charging) {
-            try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
-            try self.cpu_states.set_amd_epp(AmdEPP.Power);
-            try self.battery_states.set_platform_profile(PlatformProfile.LowPower);
-        } else {
-            try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
-            try self.cpu_states.set_amd_epp(AmdEPP.BalancePower);
-            try self.battery_states.set_platform_profile(PlatformProfile.Balanced);
-        }
-
-        try self.cpu_states.set_cpu_turbo_boost(0);
+        try self.cpu_states.set_scaling_governer(ScalingGoverner.Powersave);
+        try self.cpu_states.set_amd_epp(AmdEPP.BalancePower);
+        try self.battery_states.set_platform_profile(PlatformProfile.Balanced);
+        try self.cpu_states.set_cpu_boost(0);
     }
 
-    pub fn set_performance_mode(self: *@This()) !void {
+    pub fn set_performance_mode(self: *@This(), enable_boost: bool) !void {
         if (try self.battery_states.read_charging_status() == ChargingStatus.DisCharging)
             return;
 
         try self.cpu_states.set_scaling_governer(ScalingGoverner.Performance);
         try self.cpu_states.set_amd_epp(AmdEPP.Performance);
         try self.battery_states.set_platform_profile(PlatformProfile.Performance);
-        try self.cpu_states.set_cpu_turbo_boost(1);
+        try self.cpu_states.set_cpu_boost(if (enable_boost) 1 else 0);
     }
 
     fn detect_linux() bool {
