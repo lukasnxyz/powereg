@@ -11,8 +11,9 @@ Todo
 - [ ] tests somehow?
 - [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
 - [ ] nicer --live/--monitor cli view/updating
-- [ ] remove need for it in (only in Config now)
-- [ ] parse config config only on --live, --daemon, --install
+- [ ] remove need for allocator (only in Config now)
+- [ ] rename PersFd.deinit() to PersFd.close()
+- [X] parse config config only on --live, --daemon, --install
 - [X] used debug allocator
 - [X] proper naming scheme (camel case for functions, snake case for variables, pascal case for types)
 - [X] split into multiple source files
