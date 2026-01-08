@@ -1,10 +1,10 @@
 const std = @import("std");
-const l_utils = @import("utils.zig");
+const l_root = @import("root.zig");
 
 const mem = std.mem;
 const assert = std.debug.assert;
-const PersFd = l_utils.PersFd;
-const StrCol = l_utils.StrCol;
+const PersFd = l_root.PersFd;
+const StrCol = l_root.StrCol;
 
 pub const N_CPUS = @import("build_options").cpu_count;
 pub const CpuType = enum { AMD, Intel, Unknown };
@@ -19,11 +19,11 @@ pub const ScalingGoverner = enum {
 
     pub fn fromString(s: []const u8) @This() {
         if (mem.eql(u8, POWERSAVE, s)) {
-            return ScalingGoverner.Powersave;
+            return .Powersave;
         } else if (mem.eql(u8, PERFORMANCE, s)) {
-            return ScalingGoverner.Performance;
+            return .Performance;
         } else {
-            return ScalingGoverner.Unknown;
+            return .Unknown;
         }
     }
 };
@@ -44,15 +44,15 @@ pub const AmdEPP = enum {
 
     pub fn fromString(s: []const u8) @This() {
         if (mem.eql(u8, DEFAULT, s)) {
-            return AmdEPP.Default;
+            return .Default;
         } else if (mem.eql(u8, PERFORMANCE, s)) {
-            return AmdEPP.Performance;
+            return .Performance;
         } else if (mem.eql(u8, BALANCE_PERFORMANCE, s)) {
-            return AmdEPP.BalancePerformance;
+            return .BalancePerformance;
         } else if (mem.eql(u8, BALANCE_POWER, s)) {
-            return AmdEPP.BalancePower;
+            return .BalancePower;
         } else if (mem.eql(u8, POWER, s)) {
-            return AmdEPP.Power;
+            return .Power;
         } else {
             return AmdEPP.Unknown;
         }
@@ -159,20 +159,20 @@ pub const CpuStates = struct {
 
     pub fn deinit(self: *@This()) void {
         for (0..N_CPUS) |i| {
-            self.scaling_governer[i].deinit();
-            self.min_cpu_freq[i].deinit();
-            self.max_cpu_freq[i].deinit();
-            self.cpu_freq[i].deinit();
+            self.scaling_governer[i].close();
+            self.min_cpu_freq[i].close();
+            self.max_cpu_freq[i].close();
+            self.cpu_freq[i].close();
         }
         if (self.amd_epp) |*amd_epp| {
-            for (0..N_CPUS) |i| amd_epp[i].deinit();
+            for (0..N_CPUS) |i| amd_epp[i].close();
         }
 
-        self.cpu_boost.deinit();
-        self.cpu_temp.deinit();
-        self.cpu_load.deinit();
+        self.cpu_boost.close();
+        self.cpu_temp.close();
+        self.cpu_load.close();
 
-        if (self.cpu_power_draw) |*pdraw| pdraw.deinit();
+        if (self.cpu_power_draw) |*pdraw| pdraw.close();
     }
 
     pub fn print(self: *@This()) !void {
@@ -218,8 +218,8 @@ pub const CpuStates = struct {
 
     pub fn setScalingGoverner(self: *@This(), sg: ScalingGoverner) !void {
         const write = switch (sg) {
-            ScalingGoverner.Powersave => ScalingGoverner.POWERSAVE,
-            ScalingGoverner.Performance => ScalingGoverner.PERFORMANCE,
+            .Powersave => ScalingGoverner.POWERSAVE,
+            .Performance => ScalingGoverner.PERFORMANCE,
             else => return error.InvalidScalingGovVal,
         };
 
@@ -231,24 +231,24 @@ pub const CpuStates = struct {
     pub fn readAmdEpp(self: *@This()) !AmdEPP {
         if (self.amd_epp) |*amd_epp| {
             const gov = AmdEPP.fromString(try amd_epp[0].readValue());
-            assert(gov != AmdEPP.Unknown);
+            assert(gov != .Unknown);
 
             for (1..N_CPUS) |i|
                 assert(gov == AmdEPP.fromString(try amd_epp[i].readValue()));
 
             return gov;
         }
-        return AmdEPP.Unknown;
+        return .Unknown;
     }
 
     pub fn setAmdEpp(self: *@This(), epp: AmdEPP) !void {
         if (self.amd_epp) |*amd_epp| {
             const write = switch (epp) {
-                AmdEPP.Default => AmdEPP.DEFAULT,
-                AmdEPP.Performance => AmdEPP.PERFORMANCE,
-                AmdEPP.BalancePerformance => AmdEPP.BALANCE_PERFORMANCE,
-                AmdEPP.BalancePower => AmdEPP.BALANCE_POWER,
-                AmdEPP.Power => AmdEPP.POWER,
+                .Default => AmdEPP.DEFAULT,
+                .Performance => AmdEPP.PERFORMANCE,
+                .BalancePerformance => AmdEPP.BALANCE_PERFORMANCE,
+                .BalancePower => AmdEPP.BALANCE_POWER,
+                .Power => AmdEPP.POWER,
                 else => return error.InvalidEPPVal,
             };
 
@@ -312,7 +312,7 @@ pub const CpuStates = struct {
         return temp / 1000;
     }
 
-    // TODO: better way to do this?
+    // TODO: better way to do this? (without blocking for 200ms)
     pub fn readCpuLoad(self: *@This()) !f64 {
         const proc_stat = try self.cpu_load.readValue();
         var line_iter = mem.splitScalar(u8, proc_stat, '\n');

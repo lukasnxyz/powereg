@@ -1,8 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const l_root = @import("root.zig");
 const l_cpu_states = @import("cpu_states.zig");
 const l_battery_states = @import("battery_states.zig");
-const l_utils = @import("utils.zig");
 
 const mem = std.mem;
 const CpuStates = l_cpu_states.CpuStates;
@@ -13,7 +13,7 @@ const PlatformProfile = l_battery_states.PlatformProfile;
 const BatteryStates = l_battery_states.BatteryStates;
 const AcpiType = l_battery_states.AcpiType;
 const ChargingStatus = l_battery_states.ChargingStatus;
-const PersFd = l_utils.PersFd;
+const PersFd = l_root.PersFd;
 
 pub const State = enum { Powersave, Balanced, Performance };
 pub const SystemStateError = error{InvalidAcpiType};
@@ -109,6 +109,8 @@ pub const SystemState = struct {
     fn detectCpuType() CpuType {
         var fd = PersFd.init("/proc/cpuinfo", false) catch
             return CpuType.Unknown;
+        defer fd.close();
+
         const val = fd.readValue() catch
             return CpuType.Unknown;
 
@@ -166,7 +168,7 @@ pub const SystemState = struct {
         const ideapad = "ideapad";
 
         var pv = try PersFd.init("/sys/class/dmi/id/product_version", false);
-        defer pv.deinit();
+        defer pv.close();
         if (pv.readValue()) |product_version| {
             const trimmed = mem.trim(u8, product_version, &std.ascii.whitespace);
             var lowered: [pv.buffer.len]u8 = undefined;
@@ -177,7 +179,7 @@ pub const SystemState = struct {
         } else |_| {}
 
         var pn = try PersFd.init("/sys/class/dmi/id/product_name", false);
-        defer pn.deinit();
+        defer pn.close();
         if (pn.readValue()) |product_name| {
             const trimmed = mem.trim(u8, product_name, &std.ascii.whitespace);
             var lowered: [pv.buffer.len]u8 = undefined;

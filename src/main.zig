@@ -261,7 +261,7 @@ fn installDaemon(allocator: mem.Allocator) !void {
         return error.SystemctlFailed;
     }
 
-    std.debug.print("{s}\n", .{StrCol.green("Powereg succesfully installed and started via systemd!")});
+    std.debug.print("{s}\n", .{StrCol.green("Powereg successfully installed and started via systemd!")});
 }
 
 fn uninstallDaemon(allocator: mem.Allocator) !void {

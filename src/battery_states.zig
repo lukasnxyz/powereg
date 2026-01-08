@@ -1,8 +1,8 @@
 const std = @import("std");
-const l_utils = @import("utils.zig");
+const l_root = @import("root.zig");
 
 const mem = std.mem;
-const PersFd = l_utils.PersFd;
+const PersFd = l_root.PersFd;
 
 pub const AcpiType = enum { ThinkPad, IdeaPad, Unknown };
 
@@ -18,13 +18,13 @@ pub const ChargingStatus = enum {
 
     pub fn fromString(s: []const u8) @This() {
         if (mem.eql(u8, CHARGING, s)) {
-            return ChargingStatus.Charging;
+            return .Charging;
         } else if (mem.eql(u8, DISCHARGING, s)) {
-            return ChargingStatus.DisCharging;
+            return .DisCharging;
         } else if (mem.eql(u8, NOTCHARGING, s)) {
-            return ChargingStatus.NotCharging;
+            return .NotCharging;
         } else {
-            return ChargingStatus.Unknown;
+            return .Unknown;
         }
     }
 };
@@ -41,22 +41,22 @@ pub const PlatformProfile = enum {
 
     pub fn fromString(s: []const u8) @This() {
         if (mem.eql(u8, LOW_POWER, s)) {
-            return PlatformProfile.LowPower;
+            return .LowPower;
         } else if (mem.eql(u8, BALANCED, s)) {
-            return PlatformProfile.Balanced;
+            return .Balanced;
         } else if (mem.eql(u8, PERFORMANCE, s)) {
-            return PlatformProfile.Performance;
+            return .Performance;
         } else {
-            return PlatformProfile.Unknown;
+            return .Unknown;
         }
     }
 
     pub fn toString(pp: PlatformProfile) []const u8 {
         switch (pp) {
-            PlatformProfile.LowPower => return PlatformProfile.LOW_POWER,
-            PlatformProfile.Balanced => return PlatformProfile.BALANCED,
-            PlatformProfile.Performance => return PlatformProfile.PERFORMANCE,
-            PlatformProfile.Unknown => return PlatformProfile.BALANCED,
+            .LowPower => return PlatformProfile.LOW_POWER,
+            .Balanced => return PlatformProfile.BALANCED,
+            .Performance => return PlatformProfile.PERFORMANCE,
+            .Unknown => return PlatformProfile.BALANCED,
         }
     }
 };
@@ -84,12 +84,12 @@ pub const BatteryStates = struct {
     }
 
     pub fn deinit(self: *@This()) void {
-        self.battery_charging_status.deinit();
-        self.battery_capacity.deinit();
-        self.charge_start_threshold.deinit();
-        self.charge_stop_threshold.deinit();
-        self.total_power_draw.deinit();
-        self.platform_profile.deinit();
+        self.battery_charging_status.close();
+        self.battery_capacity.close();
+        self.charge_start_threshold.close();
+        self.charge_stop_threshold.close();
+        self.total_power_draw.close();
+        self.platform_profile.close();
     }
 
     pub fn print(self: *@This()) !void {

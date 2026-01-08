@@ -13,21 +13,8 @@ Todo
 - [ ] nicer --live/--monitor cli view/updating
 - [ ] remove need for allocator (only in Config now)
 - [ ] rename PersFd.deinit() to PersFd.close()
-- [X] parse config config only on --live, --daemon, --install
-- [X] used debug allocator
-- [X] proper naming scheme (camel case for functions, snake case for variables, pascal case for types)
-- [X] split into multiple source files
-- [X] read charging status from battery not acto be able to read 'not charging' as well
-- [X] properly optimized balanced/performance mode on charging/ac
-    - better switch between balanced/perf mode as well as boost on/off when
-- [X] auto enable amd_pstate on cpu_states setup
-- [X] split amd and intel
-- [X] config file for battery thresholds
-- [X] print messages with color (green, yellow, red)
-- [X] allocator.free(var) on everything I fucking forgot wow.
-- [X] get number of cpu cores at compile time?
-    - try and remove use of allocator?
-    - zig build auto-detects, zig build -Dcpu-count=8 manual
+- [ ] make high/low cpu load configurable in config
+- [ ] better way than just 512 buffer read in persfd
 
 - https://kernel.org/doc/html/latest/driver-api/pm/index.html
 

@@ -28,6 +28,7 @@ pub const EventPoller = struct {
 
     const HIGH_CPU_LOAD = 45.0;
     const LOW_CPU_LOAD = 40.0;
+    const LOW_BATTERY = 20;
 
     pub fn init(interval_s: u64) !@This() {
         const udev = c.udev_new() orelse return error.UdevInitFailed;
@@ -78,7 +79,11 @@ pub const EventPoller = struct {
                 defer _ = c.udev_device_unref(dev);
 
                 const action = c.udev_device_get_action(dev);
-                if (action == null or !mem.eql(u8, mem.span(action), "change")) {
+                if (action) |act| {
+                    if (!mem.eql(u8, mem.span(act), "change")) {
+                        return Event.Unknown;
+                    }
+                } else {
                     return Event.Unknown;
                 }
 
@@ -142,7 +147,7 @@ pub const EventPoller = struct {
     }
 
     fn periodicCheck(system_state: *SystemState, cpu_load: f64) !Event {
-        const low_battery = try system_state.battery_states.readBatteryCapacity() <= 20;
+        const low_battery = try system_state.battery_states.readBatteryCapacity() <= LOW_BATTERY;
         if (low_battery) return .LowBattery;
 
         const charging_status = try system_state.battery_states.readChargingStatus();
