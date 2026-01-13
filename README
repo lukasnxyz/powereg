@@ -7,19 +7,13 @@ Currently only supports AMD cpus. If you have an Intel cpu and would like to exp
 
 Todo
 ----
-- [ ] make aur package
 - [ ] tests somehow?
 - [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
-- [ ] nicer --live/--monitor cli view/updating
-- [ ] remove need for allocator (only in Config now)
 - [ ] make high/low cpu load configurable in config
-- [ ] a cache struct to store recently read data from SystemState, but that is immutable
-    so it can be printed via a writer for example and cache is nice and can be used for
-    visualization later as well
 - [ ] intel_pstate support
 - [ ] use libsystemd over calling system shell commands for systemctl
-- [X] rename PersFd.deinit() to PersFd.close()
-- [X] better way than just 512 buffer read in persfd
+- [ ] interact directly with libudev instead of crate
+- [ ] custom cli args parse function
 
 Getting started
 ---------------
