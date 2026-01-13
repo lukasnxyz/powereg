@@ -26,8 +26,8 @@ pub const EventPoller = struct {
     last_periodic_check: std.time.Instant,
     periodic_interval_ns: u64,
 
-    const HIGH_CPU_LOAD = 45.0;
-    const LOW_CPU_LOAD = 40.0;
+    const HIGH_CPU_LOAD = 35.0;
+    const LOW_CPU_LOAD = 30.0;
     const LOW_BATTERY = 20;
 
     pub fn init(interval_s: u64) !@This() {
@@ -185,8 +185,8 @@ pub const EventPoller = struct {
 
         if (old_state != new_state) {
             switch (new_state) {
-                .Powersave => try system_state.setPowersaveMode(),
-                .Balanced => try system_state.setBalancedMode(),
+                .Powersave => system_state.setPowersaveMode(),
+                .Balanced => system_state.setBalancedMode(),
                 .Performance => unreachable,
             }
         }

@@ -28,7 +28,7 @@ pub const ScalingGoverner = enum {
     }
 };
 
-pub const AmdEPP = enum {
+pub const EPP = enum {
     Default,
     Performance,
     BalancePerformance,
@@ -54,7 +54,7 @@ pub const AmdEPP = enum {
         } else if (mem.eql(u8, POWER, s)) {
             return .Power;
         } else {
-            return AmdEPP.Unknown;
+            return EPP.Unknown;
         }
     }
 };
@@ -75,9 +75,10 @@ pub const CpuStates = struct {
     cpu_temp: PersFd,
     cpu_load: PersFd,
     cpu_boost: PersFd,
+    epp: [N_CPUS]PersFd,
 
-    amd_epp: ?[N_CPUS]PersFd,
     cpu_power_draw: ?PersFd,
+    //intel_pstate: ?PersFd, // TODO: intel_pstate support
 
     pub fn init(cpu_type: CpuType) !@This() {
         if (N_CPUS != try std.Thread.getCpuCount()) {
@@ -98,6 +99,7 @@ pub const CpuStates = struct {
         var cpu_freq: [N_CPUS]PersFd = undefined;
         var max_cpu_freq: [N_CPUS]PersFd = undefined;
         var min_cpu_freq: [N_CPUS]PersFd = undefined;
+        var epp: [N_CPUS]PersFd = undefined;
 
         var buf: [70]u8 = undefined;
         for (0..N_CPUS) |i| {
@@ -112,9 +114,11 @@ pub const CpuStates = struct {
 
             const max_cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", .{i});
             max_cpu_freq[i] = try PersFd.init(max_cpu_freq_path, true);
+
+            const epp_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", .{i});
+            epp[i] = try PersFd.init(epp_path, true);
         }
 
-        var amd_epp: ?[N_CPUS]PersFd = null;
         var cpu_power_draw: ?PersFd = null;
         if (cpu_type == CpuType.AMD) {
             var amd_pstate = try PersFd.init("/sys/devices/system/cpu/amd_pstate/status", true);
@@ -128,16 +132,8 @@ pub const CpuStates = struct {
                 };
             }
 
-            var s_amd_epp: [N_CPUS]PersFd = undefined;
-            for (0..N_CPUS) |i| {
-                const epp_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", .{i});
-                s_amd_epp[i] = try PersFd.init(epp_path, true);
-            }
-            amd_epp = s_amd_epp;
-
             cpu_power_draw = try PersFd.init("/sys/class/powercap/intel-rapl:0/energy_uj", false);
         } else if (cpu_type == CpuType.Intel) {
-            return error.UnsupportedCpuType;
         } else {
             return error.UnsupportedCpuType;
         }
@@ -152,7 +148,7 @@ pub const CpuStates = struct {
             .cpu_load = try PersFd.init("/proc/stat", false),
             .cpu_boost = try PersFd.init("/sys/devices/system/cpu/cpufreq/boost", true),
 
-            .amd_epp = amd_epp,
+            .epp = epp,
             .cpu_power_draw = cpu_power_draw,
         };
     }
@@ -163,9 +159,7 @@ pub const CpuStates = struct {
             self.min_cpu_freq[i].close();
             self.max_cpu_freq[i].close();
             self.cpu_freq[i].close();
-        }
-        if (self.amd_epp) |*amd_epp| {
-            for (0..N_CPUS) |i| amd_epp[i].close();
+            self.epp[i].close();
         }
 
         self.cpu_boost.close();
@@ -180,7 +174,7 @@ pub const CpuStates = struct {
             \\CPU:
             \\  cpu type: {any}
             \\  scaling governer: {any}
-            \\  amd epp: {any}
+            \\  epp: {any}
             \\  cpu turbo boost: {any}
             \\  min/max cpu freq: {d:.2}-{d:.2} GHz
             \\  cpu freq: {d:.2} GHz
@@ -193,7 +187,7 @@ pub const CpuStates = struct {
         std.debug.print(output, .{
             self.cpu_type,
             try self.readScalingGoverner(),
-            try self.readAmdEpp(),
+            try self.readEPP(),
             try self.readCpuBoost(),
             try self.readMinCpuFreq(),
             try self.readMaxCpuFreq(),
@@ -228,36 +222,30 @@ pub const CpuStates = struct {
         }
     }
 
-    pub fn readAmdEpp(self: *@This()) !AmdEPP {
-        if (self.amd_epp) |*amd_epp| {
-            const gov = AmdEPP.fromString(try amd_epp[0].readValue());
-            assert(gov != .Unknown);
+    pub fn readEPP(self: *@This()) !EPP {
+        const gov = EPP.fromString(try self.epp[0].readValue());
+        assert(gov != .Unknown);
 
-            for (1..N_CPUS) |i|
-                assert(gov == AmdEPP.fromString(try amd_epp[i].readValue()));
-
-            return gov;
+        for (1..N_CPUS) |i| {
+            if (gov != EPP.fromString(try self.epp[i].readValue()))
+                return CpuStatesError.InvalidEPPVal;
         }
-        return .Unknown;
+
+        return gov;
     }
 
-    pub fn setAmdEpp(self: *@This(), epp: AmdEPP) !void {
-        if (self.amd_epp) |*amd_epp| {
-            const write = switch (epp) {
-                .Default => AmdEPP.DEFAULT,
-                .Performance => AmdEPP.PERFORMANCE,
-                .BalancePerformance => AmdEPP.BALANCE_PERFORMANCE,
-                .BalancePower => AmdEPP.BALANCE_POWER,
-                .Power => AmdEPP.POWER,
-                else => return error.InvalidEPPVal,
-            };
+    pub fn setEPP(self: *@This(), epp: EPP) !void {
+        const write = switch (epp) {
+            .Default => EPP.DEFAULT,
+            .Performance => EPP.PERFORMANCE,
+            .BalancePerformance => EPP.BALANCE_PERFORMANCE,
+            .BalancePower => EPP.BALANCE_POWER,
+            .Power => EPP.POWER,
+            else => return error.InvalidEPPVal,
+        };
 
-            for (0..N_CPUS) |i|
-                try amd_epp[i].setValue(write);
-        } else {
-            std.debug.print("{s}\n", .{StrCol.red("set_amd_epp: can't set because cpu_type != .AMD")});
-            return;
-        }
+        for (0..N_CPUS) |i|
+            try self.epp[i].setValue(write);
     }
 
     pub fn readCpuBoost(self: *@This()) !bool {

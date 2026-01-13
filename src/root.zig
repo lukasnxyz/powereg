@@ -35,7 +35,6 @@ pub const PersFd = struct {
     }
 
     pub fn readValue(self: *@This()) ![]const u8 {
-        // TODO: readAll here is very dangerous with buffer[512] for /proc/stat
         try self.file.seekTo(0);
         @memset(&self.buffer, 0);
         const bytes_read = try self.file.readAll(&self.buffer);

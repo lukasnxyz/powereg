@@ -8,7 +8,7 @@ const mem = std.mem;
 const CpuStates = l_cpu_states.CpuStates;
 const CpuType = l_cpu_states.CpuType;
 const ScalingGoverner = l_cpu_states.ScalingGoverner;
-const AmdEPP = l_cpu_states.AmdEPP;
+const EPP = l_cpu_states.EPP;
 const PlatformProfile = l_battery_states.PlatformProfile;
 const BatteryStates = l_battery_states.BatteryStates;
 const AcpiType = l_battery_states.AcpiType;
@@ -47,11 +47,11 @@ pub const SystemState = struct {
                 self.state = .Performance;
             },
             ChargingStatus.DisCharging => {
-                try self.setPowersaveMode();
+                self.setPowersaveMode();
                 self.state = .Powersave;
             },
             ChargingStatus.Unknown => {
-                try self.setPowersaveMode();
+                self.setPowersaveMode();
                 self.state = .Powersave;
             },
         }
@@ -68,29 +68,53 @@ pub const SystemState = struct {
         std.debug.print("State: {any}\n", .{self.state});
     }
 
-    pub fn setPowersaveMode(self: *@This()) !void {
-        try self.cpu_states.setScalingGoverner(ScalingGoverner.Powersave);
-        try self.cpu_states.setAmdEpp(AmdEPP.Power);
-        try self.battery_states.setPlatformProfile(PlatformProfile.LowPower);
-        try self.cpu_states.setCpuBoost(false);
+    pub fn setPowersaveMode(self: *@This()) void {
+        self.cpu_states.setScalingGoverner(ScalingGoverner.Powersave) catch |err| {
+            std.log.warn("Failed to set scaling governor to Powersave: {}", .{err});
+        };
+        self.cpu_states.setEPP(EPP.Power) catch |err| {
+            std.log.warn("Failed to set EPP to Power: {}", .{err});
+        };
+        self.battery_states.setPlatformProfile(PlatformProfile.LowPower) catch |err| {
+            std.log.warn("Failed to set platform profile to LowPower: {}", .{err});
+        };
+        self.cpu_states.setCpuBoost(false) catch |err| {
+            std.log.warn("Failed to disable CPU boost: {}", .{err});
+        };
     }
 
     // for now, only for high cpu temp situations when charging
-    pub fn setBalancedMode(self: *@This()) !void {
-        try self.cpu_states.setScalingGoverner(ScalingGoverner.Powersave);
-        try self.cpu_states.setAmdEpp(AmdEPP.BalancePower);
-        try self.battery_states.setPlatformProfile(PlatformProfile.Balanced);
-        try self.cpu_states.setCpuBoost(false);
+    pub fn setBalancedMode(self: *@This()) void {
+        self.cpu_states.setScalingGoverner(ScalingGoverner.Powersave) catch |err| {
+            std.log.warn("Failed to set scaling governor to Powersave: {}", .{err});
+        };
+        self.cpu_states.setEPP(EPP.BalancePower) catch |err| {
+            std.log.warn("Failed to set EPP to BalancePower: {}", .{err});
+        };
+        self.battery_states.setPlatformProfile(PlatformProfile.Balanced) catch |err| {
+            std.log.warn("Failed to set platform profile to Balanced: {}", .{err});
+        };
+        self.cpu_states.setCpuBoost(false) catch |err| {
+            std.log.warn("Failed to disable CPU boost: {}", .{err});
+        };
     }
 
     pub fn setPerformanceMode(self: *@This(), enable_boost: bool) !void {
         if (try self.battery_states.readChargingStatus() == ChargingStatus.DisCharging)
             return;
 
-        try self.cpu_states.setScalingGoverner(ScalingGoverner.Performance);
-        try self.cpu_states.setAmdEpp(AmdEPP.Performance);
-        try self.battery_states.setPlatformProfile(PlatformProfile.Performance);
-        try self.cpu_states.setCpuBoost(enable_boost);
+        self.cpu_states.setScalingGoverner(ScalingGoverner.Performance) catch |err| {
+            std.log.warn("Failed to set scaling governor to Performance: {}", .{err});
+        };
+        self.cpu_states.setEPP(EPP.Performance) catch |err| {
+            std.log.warn("Failed to set EPP to Performance: {}", .{err});
+        };
+        self.battery_states.setPlatformProfile(PlatformProfile.Performance) catch |err| {
+            std.log.warn("Failed to set platform profile to Performance: {}", .{err});
+        };
+        self.cpu_states.setCpuBoost(enable_boost) catch |err| {
+            std.log.warn("Failed to set CPU boost to {}: {}", .{enable_boost, err});
+        };
     }
 
     fn detectLinux() bool {

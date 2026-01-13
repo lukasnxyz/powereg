@@ -12,11 +12,13 @@ Todo
 - [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
 - [ ] nicer --live/--monitor cli view/updating
 - [ ] remove need for allocator (only in Config now)
-- [ ] rename PersFd.deinit() to PersFd.close()
 - [ ] make high/low cpu load configurable in config
-- [ ] better way than just 512 buffer read in persfd
-
-- https://kernel.org/doc/html/latest/driver-api/pm/index.html
+- [ ] a cache struct to store recently read data from SystemState, but that is immutable
+    so it can be printed via a writer for example and cache is nice and can be used for
+    visualization later as well
+- [ ] use libsystemd over calling system shell commands for systemctl
+- [X] rename PersFd.deinit() to PersFd.close()
+- [X] better way than just 512 buffer read in persfd
 
 Getting started
 ---------------
