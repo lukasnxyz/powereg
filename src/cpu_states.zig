@@ -78,7 +78,6 @@ pub const CpuStates = struct {
     epp: [N_CPUS]PersFd,
 
     cpu_power_draw: ?PersFd,
-    //intel_pstate: ?PersFd, // TODO: intel_pstate support
 
     pub fn init(cpu_type: CpuType) !@This() {
         if (N_CPUS != try std.Thread.getCpuCount()) {
@@ -132,6 +131,7 @@ pub const CpuStates = struct {
                 };
             }
 
+            // TODO: this might diff for intel so for now I'm just keeping it here
             cpu_power_draw = try PersFd.init("/sys/class/powercap/intel-rapl:0/energy_uj", false);
         } else if (cpu_type == CpuType.Intel) {
         } else {
