@@ -12,11 +12,11 @@ You can configure powereg via '~/.config/powereg/powereg.conf'.
 
 ### Options
 Powereg will need to be run with sudo
-- '--monitor': simply display your system states while powereg runs as a daemon in the background.
-- '--live': runs powereg in the background while showing your system states.
-- '--daemon': runs powereg with no feedback.
-- '--install': install powereg via 'systemctl enable' and 'systemctl start'.
-- '--uninstall': uninstalls powereg via 'systemctl disable' and 'systemctl stop'.
+- `--monitor`: simply display your system states while powereg runs as a daemon in the background.
+- `--live`: runs powereg in the background while showing your system states.
+- `--daemon`: runs powereg with no feedback.
+- `--install`: install powereg via 'systemctl enable' and 'systemctl start'.
+- `--uninstall`: uninstalls powereg via 'systemctl disable' and 'systemctl stop'.
 
 ### License
 - MIT License (./LICENSE)
