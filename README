@@ -3,19 +3,6 @@ Powereg
 A simple power management tool that controls the cpus power profile, EPP, as well as battery thresholds for ThinkPads.
 Currently only supports AMD cpus. If you have an Intel cpu and would like to expand this project, feel free submit a pr!
 
-** Still in development **
-
-Todo
-----
-- [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
-- [ ] intel_pstate support
-- [ ] make high/low cpu load and temp configurable in config
-
-- [ ] tests somehow?
-- [ ] nicer --live/--monitor cli view/updating
-- [ ] remove need for allocator (only in Config now)
-- [ ] use libsystemd over calling system shell commands for systemctl
-
 Getting started
 ---------------
 ./install.sh
@@ -39,3 +26,14 @@ License
 Credits
 -------
 - Inspired by auto-cpufreq (https://github.com/AdnanHodzic/auto-cpufreq).
+
+Todo
+----
+- [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
+- [ ] intel_pstate support
+- [ ] make high/low cpu load and temp configurable in config
+
+- [ ] tests somehow?
+- [ ] nicer --live/--monitor cli view/updating
+- [ ] remove need for allocator (only in Config now)
+- [ ] use libsystemd over calling system shell commands for systemctl
