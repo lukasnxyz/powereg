@@ -158,10 +158,10 @@ impl Config {
 
     pub fn get_config_path() -> Result<String, env::VarError> {
         if let Ok(sudo_user) = env::var("SUDO_USER") {
-            Ok(format!("/home/{}/.config/powereg/powereg.toml", sudo_user))
+            Ok(format!("/home/{}/.config/powereg/config.toml", sudo_user))
         } else {
             let home = env::var("HOME")?;
-            Ok(format!("{}/.config/powereg/powereg.toml", home))
+            Ok(format!("{}/.config/powereg/config.toml", home))
         }
     }
 }

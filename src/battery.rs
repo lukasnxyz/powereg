@@ -26,7 +26,7 @@ impl ChargingStatus {
     pub fn from_string(s: &str) -> Self {
         match s {
             ChargingStatus::CHARGING => Self::Charging,
-            ChargingStatus::NOT_CHARGING => Self::DisCharging,
+            ChargingStatus::NOT_CHARGING => Self::NotCharging,
             ChargingStatus::DISCHARGING => Self::DisCharging,
             _ => Self::Unknown,
         }

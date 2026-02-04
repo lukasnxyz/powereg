@@ -4,7 +4,7 @@ use powereg::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon
 use powereg::system_state::SystemState;
 use powereg::utils::{StyledString, Config};
 
-const LOOP_DURATION: u8 = 5;
+const LOOP_DURATION: u8 = 3;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]

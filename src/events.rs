@@ -24,8 +24,8 @@ pub enum Event {
 }
 
 impl Event {
-    const HIGH_CPU_LOAD: f64 = 45.0;
-    const LOW_CPU_LOAD: f64 = 40.0;
+    const HIGH_CPU_LOAD: f64 = 35.0;
+    const LOW_CPU_LOAD: f64 = 30.0;
 
     fn state_transition(self: &Event, system_state: &SystemState) {
         let old_state = *system_state.state.borrow();
