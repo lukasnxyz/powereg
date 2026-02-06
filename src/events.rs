@@ -53,7 +53,10 @@ impl Event {
         *system_state.state.borrow_mut() = new_state;
     }
 
-    fn periodic_check(system_state: &SystemState, cpu_load: f64) -> Result<Event, SystemStateError> {
+    fn periodic_check(
+        system_state: &SystemState,
+        cpu_load: f64,
+    ) -> Result<Event, SystemStateError> {
         let low_battery = system_state.battery_states.read_battery_capacity()? <= 20;
         if low_battery {
             return Ok(Event::LowBattery);

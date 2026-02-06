@@ -2,7 +2,7 @@ use clap::Parser;
 use powereg::events::EventPoller;
 use powereg::setup::{check_running_daemon_mode, install_daemon, uninstall_daemon};
 use powereg::system_state::SystemState;
-use powereg::utils::{StyledString, Config};
+use powereg::utils::{Config, StyledString};
 
 const LOOP_DURATION: u8 = 3;
 
@@ -52,7 +52,7 @@ fn main() {
             let _ = poller.poll_events();
         }
     } else if args.live {
-        setup_config(&system_state);
+        Config::setup_config(&system_state);
 
         if check_running_daemon_mode().unwrap() {
             println!("{}", "Powereg already running in daemon mode!".red());
@@ -68,7 +68,7 @@ fn main() {
             event.handle_event(&system_state).unwrap();
         }
     } else if args.daemon {
-        setup_config(&system_state);
+        Config::setup_config(&system_state);
 
         let mut poller = EventPoller::new(LOOP_DURATION).unwrap();
         loop {
@@ -76,7 +76,7 @@ fn main() {
             event.handle_event(&system_state).unwrap();
         }
     } else if args.install {
-        setup_config(&system_state);
+        Config::setup_config(&system_state);
 
         if check_running_daemon_mode().unwrap() {
             println!("{}", "Powereg already running in daemon mode!".red());
@@ -91,20 +91,5 @@ fn main() {
         }
 
         uninstall_daemon().unwrap();
-    }
-}
-
-fn setup_config(system_state: &SystemState) {
-    if let Ok(config_path) = Config::get_config_path() {
-        println!("Config path: {config_path}");
-        match Config::parse(&config_path) {
-            Ok(config) => match config.apply(&system_state) {
-                Ok(_) => {}
-                Err(e) => println!("{} {}", "Error while applying config:".red(), e),
-            },
-            Err(e) => eprintln!("{} {}", "Error loading config:".red(), e),
-        };
-    } else {
-        println!("{}", "Error loading config".red());
     }
 }

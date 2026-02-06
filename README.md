@@ -1,5 +1,4 @@
-## Powereg
-A simple power management tool that controls the cpus power profile, EPP, as well as battery thresholds for ThinkPads.
+## Powereg A simple power management tool that controls the cpus power profile, EPP, as well as battery thresholds for ThinkPads.
 Currently only supports AMD cpus. If you have an Intel cpu and would like to expand this project, feel free submit a pr!
 
 ** Still in development **
@@ -34,3 +33,4 @@ powereg will need to be run with sudo
 - [ ] use libsystemd over calling system shell commands for systemctl
 - [ ] interact directly with libudev instead of crate
 - [ ] custom cli args parse function
+- [ ] check through setup.rs

@@ -81,7 +81,9 @@ impl fmt::Display for CpuStatesError {
         match self {
             CpuStatesError::InvalidScalingGovVal => write!(f, "Unsupported scaling governer value"),
             CpuStatesError::InvalidEPPVal => write!(f, "Unsupported epp value"),
-            CpuStatesError::InvalidAMDPstate => write!(f, "AMD pstate probably isn't set to active"),
+            CpuStatesError::InvalidAMDPstate => {
+                write!(f, "AMD pstate probably isn't set to active")
+            }
             CpuStatesError::UnsupportedCpuType => write!(f, "Detected and unsupported cpu type"),
             CpuStatesError::EmptyProcStat => write!(f, "Empty /proc/stat"),
             CpuStatesError::InvalidProcStat => write!(f, "Invalid /proc/stat"),
@@ -158,7 +160,10 @@ impl fmt::Display for CpuStates {
 
 impl CpuStates {
     pub fn init(n: usize, cpu_type: &CpuType) -> Result<Self, CpuStatesError> {
-        let mut available_asgr = PersFd::new("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false)?;
+        let mut available_asgr = PersFd::new(
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors",
+            false,
+        )?;
         let asgr = available_asgr.read_value()?;
 
         if !asgr.contains("performance") || !asgr.contains("powersave") {
@@ -181,8 +186,10 @@ impl CpuStates {
             let max_cpu_freq_path =
                 format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", i);
 
-            let amd_epp_path =
-                format!("/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", i);
+            let amd_epp_path = format!(
+                "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference",
+                i
+            );
 
             scaling_governer.push(RefCell::new(PersFd::new(&scaling_gov_path, true)?));
             cpu_freq.push(RefCell::new(PersFd::new(&cpu_freq_path, false)?));
@@ -206,7 +213,10 @@ impl CpuStates {
                 }
             }
 
-            cpu_power_draw = Some(RefCell::new(PersFd::new("/sys/class/powercap/intel-rapl:0/energy_uj", false)?));
+            cpu_power_draw = Some(RefCell::new(PersFd::new(
+                "/sys/class/powercap/intel-rapl:0/energy_uj",
+                false,
+            )?));
         } else if *cpu_type == CpuType::Intel {
         } else {
             return Err(CpuStatesError::UnsupportedCpuType);
@@ -222,10 +232,7 @@ impl CpuStates {
             cpu_freq,
             cpu_temp: RefCell::new(PersFd::new("/sys/class/thermal/thermal_zone0/temp", false)?),
             cpu_load: RefCell::new(PersFd::new("/proc/stat", false)?),
-            cpu_boost: RefCell::new(PersFd::new(
-                "/sys/devices/system/cpu/cpufreq/boost",
-                true,
-            )?),
+            cpu_boost: RefCell::new(PersFd::new("/sys/devices/system/cpu/cpufreq/boost", true)?),
             epp,
 
             cpu_power_draw,
@@ -295,19 +302,13 @@ impl CpuStates {
     }
 
     pub fn read_cpu_boost(&self) -> Result<bool, CpuStatesError> {
-        let val = self
-            .cpu_boost
-            .borrow_mut()
-            .read_value()?
-            .parse::<u8>()?;
+        let val = self.cpu_boost.borrow_mut().read_value()?.parse::<u8>()?;
         Ok(val == 1)
     }
 
     pub fn set_cpu_boost(&self, cpu_boost: bool) -> Result<(), CpuStatesError> {
         let val_str = (cpu_boost as u8).to_string();
-        self.cpu_boost
-            .borrow_mut()
-            .set_value(&val_str)?;
+        self.cpu_boost.borrow_mut().set_value(&val_str)?;
         Ok(())
     }
 
@@ -356,15 +357,23 @@ impl CpuStates {
     // TODO: a better way to do this?
     pub fn read_cpu_load(&self) -> Result<f64, CpuStatesError> {
         let proc_stat = self.cpu_load.borrow_mut().read_value()?;
-        let line = proc_stat.lines().next().ok_or(CpuStatesError::EmptyProcStat)?;
+        let line = proc_stat
+            .lines()
+            .next()
+            .ok_or(CpuStatesError::EmptyProcStat)?;
 
-        let prev: Vec<u64> = line.split_whitespace()
+        let prev: Vec<u64> = line
+            .split_whitespace()
             .skip(1)
             .map(|s| s.parse::<u64>().map_err(|e| CpuStatesError::ParseIntErr(e)))
             .collect::<Result<Vec<_>, _>>()?;
 
-        if prev.len() < 4 { return Err(CpuStatesError::InvalidProcStat); }
-        if prev.len() > 10 { return Err(CpuStatesError::GenericError("to many fields".to_string())); }
+        if prev.len() < 4 {
+            return Err(CpuStatesError::InvalidProcStat);
+        }
+        if prev.len() > 10 {
+            return Err(CpuStatesError::GenericError("to many fields".to_string()));
+        }
 
         let prev_total: u64 = prev.iter().sum();
         let prev_idle = prev[3] + prev.get(4).unwrap_or(&0);
@@ -372,15 +381,23 @@ impl CpuStates {
         thread::sleep(Duration::from_millis(200));
 
         let proc_stat2 = self.cpu_load.borrow_mut().read_value()?;
-        let line2 = proc_stat2.lines().next().ok_or(CpuStatesError::EmptyProcStat)?;
+        let line2 = proc_stat2
+            .lines()
+            .next()
+            .ok_or(CpuStatesError::EmptyProcStat)?;
 
-        let now: Vec<u64> = line2.split_whitespace()
+        let now: Vec<u64> = line2
+            .split_whitespace()
             .skip(1)
             .map(|s| s.parse::<u64>().map_err(|e| CpuStatesError::ParseIntErr(e)))
             .collect::<Result<Vec<_>, _>>()?;
 
-        if now.len() < 4 { return Err(CpuStatesError::InvalidProcStat); }
-        if now.len() > 10 { return Err(CpuStatesError::GenericError("to many fields".to_string())); }
+        if now.len() < 4 {
+            return Err(CpuStatesError::InvalidProcStat);
+        }
+        if now.len() > 10 {
+            return Err(CpuStatesError::GenericError("to many fields".to_string()));
+        }
 
         let now_total: u64 = now.iter().sum();
         let now_idle = now[3] + now.get(4).unwrap_or(&0);
@@ -420,5 +437,6 @@ impl CpuStates {
             Ok(watts)
         } else {
             Ok(0.0)
-        }    }
+        }
+    }
 }

@@ -1,12 +1,12 @@
-use crate::system_state::{SystemState, SystemStateError};
 use crate::battery::ACPIType;
-use std::fmt;
-use std::fs::{File, OpenOptions};
-use std::io::{self, prelude::*, Seek, SeekFrom, Write, Error, ErrorKind};
-use std::path::Path;
-use std::env;
-use std::fs;
+use crate::system_state::{SystemState, SystemStateError};
 use serde::Deserialize;
+use std::env;
+use std::fmt;
+use std::fs;
+use std::fs::{File, OpenOptions};
+use std::io::{self, prelude::*, Error, ErrorKind, Seek, SeekFrom, Write};
+use std::path::Path;
 
 #[derive(Debug)]
 pub enum PersFdError {
@@ -39,10 +39,7 @@ impl PersFd {
             .open(path)
             .map_err(PersFdError::ReadErr)?;
 
-        Ok(PersFd {
-            file,
-            write,
-        })
+        Ok(PersFd { file, write })
     }
 
     pub fn read_value(&mut self) -> Result<String, PersFdError> {
@@ -162,6 +159,21 @@ impl Config {
         } else {
             let home = env::var("HOME")?;
             Ok(format!("{}/.config/powereg/config.toml", home))
+        }
+    }
+
+    pub fn setup_config(system_state: &SystemState) {
+        if let Ok(config_path) = Config::get_config_path() {
+            println!("Config path: {config_path}");
+            match Config::parse(&config_path) {
+                Ok(config) => match config.apply(&system_state) {
+                    Ok(_) => {}
+                    Err(e) => println!("{} {}", "Error while applying config:".red(), e),
+                },
+                Err(e) => eprintln!("{} {}", "Error loading config:".red(), e),
+            };
+        } else {
+            println!("{}", "Error loading config".red());
         }
     }
 }

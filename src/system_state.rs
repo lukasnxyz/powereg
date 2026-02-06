@@ -1,10 +1,12 @@
-use crate::battery::{BatteryStates, BatteryStatesError, ChargingStatus, PlatformProfile, ACPIType};
-use crate::cpu::{CpuStates, CpuStatesError, ScalingGoverner, EPP, CpuType};
+use crate::battery::{
+    ACPIType, BatteryStates, BatteryStatesError, ChargingStatus, PlatformProfile,
+};
+use crate::cpu::{CpuStates, CpuStatesError, CpuType, ScalingGoverner, EPP};
+use std::cell::RefCell;
+use std::fmt;
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::fmt;
-use std::cell::RefCell;
 
 #[derive(Debug)]
 pub enum SystemStateError {
@@ -95,15 +97,15 @@ impl SystemState {
             ChargingStatus::Charging | ChargingStatus::NotCharging => {
                 self.set_performance_mode(false)?;
                 *self.state.borrow_mut() = State::Performance;
-            },
+            }
             ChargingStatus::DisCharging => {
                 self.set_powersave_mode()?;
                 *self.state.borrow_mut() = State::Powersave;
-            },
+            }
             ChargingStatus::Unknown => {
                 self.set_balanced_mode()?;
                 *self.state.borrow_mut() = State::Powersave;
-            },
+            }
         }
 
         Ok(())
