@@ -1,4 +1,5 @@
-## Powereg A simple power management tool that controls the cpus power profile, EPP, as well as battery thresholds for ThinkPads.
+## Powereg
+- A simple power management tool that controls the cpus power profile, EPP, as well as battery thresholds for ThinkPads.
 Currently only supports AMD cpus. If you have an Intel cpu and would like to expand this project, feel free submit a pr!
 
 ** Still in development **
