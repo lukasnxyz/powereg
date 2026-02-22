@@ -1,0 +1,11 @@
+[package]
+name = "powereg"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libc = "0.2.178"
+udev = "0.9.3"
+clap = { version = "4.5.53", features = ["derive"] } # TODO: write simple custom version
+toml = "0.9.8"
+serde = { version = "1.0.228", features = ["derive"] } # TODO: write custom version
