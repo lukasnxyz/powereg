@@ -10,167 +10,168 @@ pub const N_CPUS = @import("build_options").cpu_count;
 pub const CpuType = enum { AMD, Intel, Unknown };
 
 pub const ScalingGoverner = enum {
-    Powersave,
-    Performance,
-    Unknown,
+  Powersave,
+  Performance,
+  Unknown,
 
-    const PERFORMANCE: []const u8 = "performance";
-    const POWERSAVE: []const u8 = "powersave";
+  const PERFORMANCE: []const u8 = "performance";
+  const POWERSAVE: []const u8 = "powersave";
 
-    pub fn fromString(s: []const u8) @This() {
-        if (mem.eql(u8, POWERSAVE, s)) {
-            return .Powersave;
-        } else if (mem.eql(u8, PERFORMANCE, s)) {
-            return .Performance;
-        } else {
-            return .Unknown;
-        }
+  pub fn fromString(s: []const u8) @This() {
+    if (mem.eql(u8, POWERSAVE, s)) {
+      return .Powersave;
+    } else if (mem.eql(u8, PERFORMANCE, s)) {
+      return .Performance;
+    } else {
+      return .Unknown;
     }
+  }
 };
 
 pub const EPP = enum {
-    Default,
-    Performance,
-    BalancePerformance,
-    BalancePower,
-    Power,
-    Unknown,
+  Default,
+  Performance,
+  BalancePerformance,
+  BalancePower,
+  Power,
+  Unknown,
 
-    const DEFAULT: []const u8 = "default";
-    const PERFORMANCE: []const u8 = "performance";
-    const BALANCE_PERFORMANCE: []const u8 = "balance_performance";
-    const BALANCE_POWER: []const u8 = "balance_power";
-    const POWER: []const u8 = "power";
+  const DEFAULT: []const u8 = "default";
+  const PERFORMANCE: []const u8 = "performance";
+  const BALANCE_PERFORMANCE: []const u8 = "balance_performance";
+  const BALANCE_POWER: []const u8 = "balance_power";
+  const POWER: []const u8 = "power";
 
-    pub fn fromString(s: []const u8) @This() {
-        if (mem.eql(u8, DEFAULT, s)) {
-            return .Default;
-        } else if (mem.eql(u8, PERFORMANCE, s)) {
-            return .Performance;
-        } else if (mem.eql(u8, BALANCE_PERFORMANCE, s)) {
-            return .BalancePerformance;
-        } else if (mem.eql(u8, BALANCE_POWER, s)) {
-            return .BalancePower;
-        } else if (mem.eql(u8, POWER, s)) {
-            return .Power;
-        } else {
-            return EPP.Unknown;
-        }
+  pub fn fromString(s: []const u8) @This() {
+    if (mem.eql(u8, DEFAULT, s)) {
+      return .Default;
+    } else if (mem.eql(u8, PERFORMANCE, s)) {
+      return .Performance;
+    } else if (mem.eql(u8, BALANCE_PERFORMANCE, s)) {
+      return .BalancePerformance;
+    } else if (mem.eql(u8, BALANCE_POWER, s)) {
+      return .BalancePower;
+    } else if (mem.eql(u8, POWER, s)) {
+      return .Power;
+    } else {
+      return EPP.Unknown;
     }
+  }
 };
 
 pub const CpuStatesError = error{
-    InvalidScalingGovVal,
-    InvalidEPPVal,
-    InvalidCpuCount,
-    InvalidAMDPstate,
-    UnsupportedCpuType,
+  InvalidScalingGovVal,
+  InvalidEPPVal,
+  InvalidCpuCount,
+  InvalidAMDPstate,
+  UnsupportedCpuType,
 };
+
 pub const CpuStates = struct {
-    cpu_type: CpuType,
-    scaling_governer: [N_CPUS]PersFd,
-    min_cpu_freq: [N_CPUS]PersFd,
-    max_cpu_freq: [N_CPUS]PersFd,
-    cpu_freq: [N_CPUS]PersFd,
-    cpu_temp: PersFd,
-    cpu_load: PersFd,
-    cpu_boost: PersFd,
-    epp: [N_CPUS]PersFd,
+  cpu_type: CpuType,
+  scaling_governer: [N_CPUS]PersFd,
+  min_cpu_freq: [N_CPUS]PersFd,
+  max_cpu_freq: [N_CPUS]PersFd,
+  cpu_freq: [N_CPUS]PersFd,
+  cpu_temp: PersFd,
+  cpu_load: PersFd,
+  cpu_boost: PersFd,
+  epp: [N_CPUS]PersFd,
 
-    cpu_power_draw: ?PersFd,
+  cpu_power_draw: ?PersFd,
 
-    pub fn init(cpu_type: CpuType) !@This() {
-        if (N_CPUS != try std.Thread.getCpuCount()) {
-            std.debug.print("# of cpu cores on the build system not the same as on the run system!\n", .{});
-            return error.InvalidCpuCount;
-        }
-
-        var available_asgr = try PersFd.init("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false);
-        const asgr = try available_asgr.readValue();
-        if ((mem.indexOf(u8, asgr, "performance") == null) or
-            (mem.indexOf(u8, asgr, "powersave") == null))
-        {
-            std.debug.print("Incorrect available scaling governer options!", .{});
-            return error.InvalidScalingGovVal;
-        }
-
-        var scaling_governer: [N_CPUS]PersFd = undefined;
-        var cpu_freq: [N_CPUS]PersFd = undefined;
-        var max_cpu_freq: [N_CPUS]PersFd = undefined;
-        var min_cpu_freq: [N_CPUS]PersFd = undefined;
-        var epp: [N_CPUS]PersFd = undefined;
-
-        var buf: [70]u8 = undefined;
-        for (0..N_CPUS) |i| {
-            const scaling_gov_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{d}/cpufreq/scaling_governor", .{i});
-            scaling_governer[i] = try PersFd.init(scaling_gov_path, true);
-
-            const cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", .{i});
-            cpu_freq[i] = try PersFd.init(cpu_freq_path, false);
-
-            const min_cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_min_freq", .{i});
-            min_cpu_freq[i] = try PersFd.init(min_cpu_freq_path, true);
-
-            const max_cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", .{i});
-            max_cpu_freq[i] = try PersFd.init(max_cpu_freq_path, true);
-
-            const epp_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", .{i});
-            epp[i] = try PersFd.init(epp_path, true);
-        }
-
-        var cpu_power_draw: ?PersFd = null;
-        if (cpu_type == CpuType.AMD) {
-            var amd_pstate = try PersFd.init("/sys/devices/system/cpu/amd_pstate/status", true);
-            const r_amd_pstate = try amd_pstate.readValue();
-            if (mem.indexOf(u8, r_amd_pstate, "active") == null) {
-                std.debug.print("amd_pstate is not active!\n", .{});
-                std.debug.print("Attempting to set amd_pstate to 'active'\n", .{});
-                amd_pstate.setValue("active") catch |e| {
-                    std.debug.print("Failed setting amd_pstate to 'active': {any}\n", .{e});
-                    return error.InvalidAMDPstate;
-                };
-            }
-
-            // TODO: this might diff for intel so for now I'm just keeping it here
-            cpu_power_draw = try PersFd.init("/sys/class/powercap/intel-rapl:0/energy_uj", false);
-        } else if (cpu_type == CpuType.Intel) {
-        } else {
-            return error.UnsupportedCpuType;
-        }
-
-        return .{
-            .cpu_type = cpu_type,
-            .scaling_governer = scaling_governer,
-            .min_cpu_freq = min_cpu_freq,
-            .max_cpu_freq = max_cpu_freq,
-            .cpu_freq = cpu_freq,
-            .cpu_temp = try PersFd.init("/sys/class/thermal/thermal_zone0/temp", false),
-            .cpu_load = try PersFd.init("/proc/stat", false),
-            .cpu_boost = try PersFd.init("/sys/devices/system/cpu/cpufreq/boost", true),
-
-            .epp = epp,
-            .cpu_power_draw = cpu_power_draw,
-        };
+  pub fn init(cpu_type: CpuType) !@This() {
+    if (N_CPUS != try std.Thread.getCpuCount()) {
+      std.debug.print("# of cpu cores on the build system not the same as on the run system!\n", .{});
+      return error.InvalidCpuCount;
     }
 
-    pub fn deinit(self: *@This()) void {
-        for (0..N_CPUS) |i| {
-            self.scaling_governer[i].close();
-            self.min_cpu_freq[i].close();
-            self.max_cpu_freq[i].close();
-            self.cpu_freq[i].close();
-            self.epp[i].close();
-        }
-
-        self.cpu_boost.close();
-        self.cpu_temp.close();
-        self.cpu_load.close();
-
-        if (self.cpu_power_draw) |*pdraw| pdraw.close();
+    var available_asgr = try PersFd.init("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", false);
+    const asgr = try available_asgr.readValue();
+    if ((mem.indexOf(u8, asgr, "performance") == null) or
+      (mem.indexOf(u8, asgr, "powersave") == null))
+    {
+      std.debug.print("Incorrect available scaling governer options!", .{});
+      return error.InvalidScalingGovVal;
     }
 
-    pub fn print(self: *@This()) !void {
-        const output =
+    var scaling_governer: [N_CPUS]PersFd = undefined;
+    var cpu_freq: [N_CPUS]PersFd = undefined;
+    var max_cpu_freq: [N_CPUS]PersFd = undefined;
+    var min_cpu_freq: [N_CPUS]PersFd = undefined;
+    var epp: [N_CPUS]PersFd = undefined;
+
+    var buf: [70]u8 = undefined;
+    for (0..N_CPUS) |i| {
+      const scaling_gov_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{d}/cpufreq/scaling_governor", .{i});
+      scaling_governer[i] = try PersFd.init(scaling_gov_path, true);
+
+      const cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", .{i});
+      cpu_freq[i] = try PersFd.init(cpu_freq_path, false);
+
+      const min_cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_min_freq", .{i});
+      min_cpu_freq[i] = try PersFd.init(min_cpu_freq_path, true);
+
+      const max_cpu_freq_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", .{i});
+      max_cpu_freq[i] = try PersFd.init(max_cpu_freq_path, true);
+
+      const epp_path = try std.fmt.bufPrint(&buf, "/sys/devices/system/cpu/cpu{}/cpufreq/energy_performance_preference", .{i});
+      epp[i] = try PersFd.init(epp_path, true);
+    }
+
+    var cpu_power_draw: ?PersFd = null;
+    if (cpu_type == CpuType.AMD) {
+      var amd_pstate = try PersFd.init("/sys/devices/system/cpu/amd_pstate/status", true);
+      const r_amd_pstate = try amd_pstate.readValue();
+      if (mem.indexOf(u8, r_amd_pstate, "active") == null) {
+        std.debug.print("amd_pstate is not active!\n", .{});
+        std.debug.print("Attempting to set amd_pstate to 'active'\n", .{});
+        amd_pstate.setValue("active") catch |e| {
+          std.debug.print("Failed setting amd_pstate to 'active': {any}\n", .{e});
+          return error.InvalidAMDPstate;
+      };
+      }
+
+      // TODO: this might diff for intel so for now I'm just keeping it here
+      cpu_power_draw = try PersFd.init("/sys/class/powercap/intel-rapl:0/energy_uj", false);
+    } else if (cpu_type == CpuType.Intel) {
+    } else {
+      return error.UnsupportedCpuType;
+    }
+
+    return .{
+      .cpu_type = cpu_type,
+      .scaling_governer = scaling_governer,
+      .min_cpu_freq = min_cpu_freq,
+      .max_cpu_freq = max_cpu_freq,
+      .cpu_freq = cpu_freq,
+      .cpu_temp = try PersFd.init("/sys/class/thermal/thermal_zone0/temp", false),
+      .cpu_load = try PersFd.init("/proc/stat", false),
+      .cpu_boost = try PersFd.init("/sys/devices/system/cpu/cpufreq/boost", true),
+
+      .epp = epp,
+      .cpu_power_draw = cpu_power_draw,
+    };
+  }
+
+  pub fn deinit(self: *@This()) void {
+    for (0..N_CPUS) |i| {
+      self.scaling_governer[i].close();
+      self.min_cpu_freq[i].close();
+      self.max_cpu_freq[i].close();
+      self.cpu_freq[i].close();
+      self.epp[i].close();
+    }
+
+    self.cpu_boost.close();
+    self.cpu_temp.close();
+    self.cpu_load.close();
+
+    if (self.cpu_power_draw) |*pdraw| pdraw.close();
+  }
+
+  pub fn print(self: *@This()) !void {
+    const output =
             \\CPU:
             \\  cpu type: {any}
             \\  scaling governer: {any}
@@ -182,222 +183,222 @@ pub const CpuStates = struct {
             \\  cpu load: {d:.2}%
             \\  cpu power draw: {d:.2} W
             \\
-        ;
+            ;
 
-        std.debug.print(output, .{
-            self.cpu_type,
-            try self.readScalingGoverner(),
-            try self.readEPP(),
-            try self.readCpuBoost(),
-            try self.readMinCpuFreq(),
-            try self.readMaxCpuFreq(),
-            try self.readAvgCpuFreq(),
-            try self.readCpuTemp(),
-            try self.readCpuLoad(),
-            try self.readCpuPowerDraw(),
-        });
+            std.debug.print(output, .{
+              self.cpu_type,
+              try self.readScalingGoverner(),
+              try self.readEPP(),
+              try self.readCpuBoost(),
+              try self.readMinCpuFreq(),
+              try self.readMaxCpuFreq(),
+              try self.readAvgCpuFreq(),
+              try self.readCpuTemp(),
+              try self.readCpuLoad(),
+              try self.readCpuPowerDraw(),
+            });
+  }
+
+  pub fn readScalingGoverner(self: *@This()) !ScalingGoverner {
+    const gov = ScalingGoverner.fromString(try self.scaling_governer[0].readValue());
+    assert(gov != ScalingGoverner.Unknown);
+
+    for (1..N_CPUS) |i| {
+      const val = ScalingGoverner.fromString(try self.scaling_governer[i].readValue());
+      assert(gov == val);
     }
 
-    pub fn readScalingGoverner(self: *@This()) !ScalingGoverner {
-        const gov = ScalingGoverner.fromString(try self.scaling_governer[0].readValue());
-        assert(gov != ScalingGoverner.Unknown);
+    return gov;
+  }
 
-        for (1..N_CPUS) |i| {
-            const val = ScalingGoverner.fromString(try self.scaling_governer[i].readValue());
-            assert(gov == val);
-        }
+  pub fn setScalingGoverner(self: *@This(), sg: ScalingGoverner) !void {
+    const write = switch (sg) {
+      .Powersave => ScalingGoverner.POWERSAVE,
+      .Performance => ScalingGoverner.PERFORMANCE,
+      else => return error.InvalidScalingGovVal,
+    };
 
-        return gov;
+    for (0..N_CPUS) |i| {
+      try self.scaling_governer[i].setValue(write);
+    }
+  }
+
+  pub fn readEPP(self: *@This()) !EPP {
+    const gov = EPP.fromString(try self.epp[0].readValue());
+    assert(gov != .Unknown);
+
+    for (1..N_CPUS) |i| {
+      if (gov != EPP.fromString(try self.epp[i].readValue()))
+        return CpuStatesError.InvalidEPPVal;
     }
 
-    pub fn setScalingGoverner(self: *@This(), sg: ScalingGoverner) !void {
-        const write = switch (sg) {
-            .Powersave => ScalingGoverner.POWERSAVE,
-            .Performance => ScalingGoverner.PERFORMANCE,
-            else => return error.InvalidScalingGovVal,
-        };
+    return gov;
+  }
 
-        for (0..N_CPUS) |i| {
-            try self.scaling_governer[i].setValue(write);
-        }
+  pub fn setEPP(self: *@This(), epp: EPP) !void {
+    const write = switch (epp) {
+      .Default => EPP.DEFAULT,
+      .Performance => EPP.PERFORMANCE,
+      .BalancePerformance => EPP.BALANCE_PERFORMANCE,
+      .BalancePower => EPP.BALANCE_POWER,
+      .Power => EPP.POWER,
+      else => return error.InvalidEPPVal,
+    };
+
+    for (0..N_CPUS) |i|
+      try self.epp[i].setValue(write);
+  }
+
+  pub fn readCpuBoost(self: *@This()) !bool {
+    return try std.fmt.parseInt(u8, try self.cpu_boost.readValue(), 10) == 1;
+  }
+
+  pub fn setCpuBoost(self: *@This(), boost: bool) !void {
+    var buf: [3]u8 = undefined;
+    const str = try std.fmt.bufPrint(&buf, "{}", .{@intFromBool(boost)});
+    try self.cpu_boost.setValue(str);
+  }
+
+  // GHz
+  pub fn readAvgCpuFreq(self: *@This()) !f32 {
+    var total: usize = 0;
+
+    for (0..N_CPUS) |i| {
+      const val = try self.cpu_freq[i].readValue();
+      total += try std.fmt.parseInt(usize, val, 10);
     }
 
-    pub fn readEPP(self: *@This()) !EPP {
-        const gov = EPP.fromString(try self.epp[0].readValue());
-        assert(gov != .Unknown);
+    return @as(f32, @floatFromInt(total / N_CPUS)) / 1_000_000.0;
+  }
 
-        for (1..N_CPUS) |i| {
-            if (gov != EPP.fromString(try self.epp[i].readValue()))
-                return CpuStatesError.InvalidEPPVal;
-        }
+  // GHz
+  pub fn readMinCpuFreq(self: *@This()) !f32 {
+    const prev = try std.fmt.parseInt(usize, try self.min_cpu_freq[0].readValue(), 10);
 
-        return gov;
+    for (1..N_CPUS) |i| {
+      const val = try std.fmt.parseInt(usize, try self.min_cpu_freq[i].readValue(), 10);
+      assert(val == prev);
     }
 
-    pub fn setEPP(self: *@This(), epp: EPP) !void {
-        const write = switch (epp) {
-            .Default => EPP.DEFAULT,
-            .Performance => EPP.PERFORMANCE,
-            .BalancePerformance => EPP.BALANCE_PERFORMANCE,
-            .BalancePower => EPP.BALANCE_POWER,
-            .Power => EPP.POWER,
-            else => return error.InvalidEPPVal,
-        };
+    return @as(f32, @floatFromInt(prev)) / 1_000_000.0;
+  }
 
-        for (0..N_CPUS) |i|
-            try self.epp[i].setValue(write);
+  // GHz
+  pub fn readMaxCpuFreq(self: *@This()) !f32 {
+    const prev = try std.fmt.parseInt(usize, try self.max_cpu_freq[0].readValue(), 10);
+
+    for (1..N_CPUS) |i| {
+      const val = try std.fmt.parseInt(usize, try self.max_cpu_freq[i].readValue(), 10);
+      assert(val == prev);
     }
 
-    pub fn readCpuBoost(self: *@This()) !bool {
-        return try std.fmt.parseInt(u8, try self.cpu_boost.readValue(), 10) == 1;
+    return @as(f32, @floatFromInt(prev)) / 1_000_000.0;
+  }
+
+  // celcius
+  pub fn readCpuTemp(self: *@This()) !usize {
+    const temp = try std.fmt.parseInt(usize, try self.cpu_temp.readValue(), 10);
+    return temp / 1000;
+  }
+
+  // TODO: better way to do this? (without blocking for 200ms)
+  pub fn readCpuLoad(self: *@This()) !f64 {
+    const proc_stat = try self.cpu_load.readValue();
+    var line_iter = mem.splitScalar(u8, proc_stat, '\n');
+    const line = line_iter.next() orelse
+      return error.EmptyProcStat;
+
+    var parts = mem.tokenizeAny(u8, line, " \t");
+    _ = parts.next(); // skip first field (cpu label)
+
+    var prev: [10]u64 = undefined;
+    var prev_len: usize = 0;
+    while (parts.next()) |part| {
+      if (prev_len >= prev.len) return error.TooManyFields;
+      const val = std.fmt.parseInt(u64, part, 10) catch
+        return error.ParseError;
+      prev[prev_len] = val;
+      prev_len += 1;
     }
 
-    pub fn setCpuBoost(self: *@This(), boost: bool) !void {
-        var buf: [3]u8 = undefined;
-        const str = try std.fmt.bufPrint(&buf, "{}", .{@intFromBool(boost)});
-        try self.cpu_boost.setValue(str);
+    if (prev_len < 4) {
+      return error.InvalidProcStatFormat;
     }
 
-    // GHz
-    pub fn readAvgCpuFreq(self: *@This()) !f32 {
-        var total: usize = 0;
-
-        for (0..N_CPUS) |i| {
-            const val = try self.cpu_freq[i].readValue();
-            total += try std.fmt.parseInt(usize, val, 10);
-        }
-
-        return @as(f32, @floatFromInt(total / N_CPUS)) / 1_000_000.0;
+    var prev_total: u64 = 0;
+    for (prev[0..prev_len]) |val| {
+      prev_total += val;
     }
 
-    // GHz
-    pub fn readMinCpuFreq(self: *@This()) !f32 {
-        const prev = try std.fmt.parseInt(usize, try self.min_cpu_freq[0].readValue(), 10);
+    const prev_idle = prev[3] + if (prev_len > 4) prev[4] else 0;
 
-        for (1..N_CPUS) |i| {
-            const val = try std.fmt.parseInt(usize, try self.min_cpu_freq[i].readValue(), 10);
-            assert(val == prev);
-        }
+    std.Thread.sleep(200 * std.time.ns_per_ms);
 
-        return @as(f32, @floatFromInt(prev)) / 1_000_000.0;
+    const proc_stat2 = try self.cpu_load.readValue();
+    var line_iter2 = mem.splitScalar(u8, proc_stat2, '\n');
+    const line2 = line_iter2.next() orelse
+      return error.EmptyProcStat;
+
+    var parts2 = mem.tokenizeAny(u8, line2, " \t");
+    _ = parts2.next(); // skip first field
+
+    var now: [10]u64 = undefined;
+    var now_len: usize = 0;
+    while (parts2.next()) |part| {
+      if (now_len >= now.len) return error.TooManyFields;
+      const val = std.fmt.parseInt(u64, part, 10) catch
+        return error.ParseError;
+      now[now_len] = val;
+      now_len += 1;
     }
 
-    // GHz
-    pub fn readMaxCpuFreq(self: *@This()) !f32 {
-        const prev = try std.fmt.parseInt(usize, try self.max_cpu_freq[0].readValue(), 10);
-
-        for (1..N_CPUS) |i| {
-            const val = try std.fmt.parseInt(usize, try self.max_cpu_freq[i].readValue(), 10);
-            assert(val == prev);
-        }
-
-        return @as(f32, @floatFromInt(prev)) / 1_000_000.0;
+    if (now_len < 4) {
+      return error.InvalidProcStatFormat;
     }
 
-    // celcius
-    pub fn readCpuTemp(self: *@This()) !usize {
-        const temp = try std.fmt.parseInt(usize, try self.cpu_temp.readValue(), 10);
-        return temp / 1000;
+    var now_total: u64 = 0;
+    for (now[0..now_len]) |val| {
+      now_total += val;
     }
 
-    // TODO: better way to do this? (without blocking for 200ms)
-    pub fn readCpuLoad(self: *@This()) !f64 {
-        const proc_stat = try self.cpu_load.readValue();
-        var line_iter = mem.splitScalar(u8, proc_stat, '\n');
-        const line = line_iter.next() orelse
-            return error.EmptyProcStat;
+    const now_idle = now[3] + if (now_len > 4) now[4] else 0;
 
-        var parts = mem.tokenizeAny(u8, line, " \t");
-        _ = parts.next(); // skip first field (cpu label)
+    const total_delta = @max(@as(i64, @intCast(now_total)) - @as(i64, @intCast(prev_total)), 1);
+    const idle_delta = @as(i64, @intCast(now_idle)) - @as(i64, @intCast(prev_idle));
 
-        var prev: [10]u64 = undefined;
-        var prev_len: usize = 0;
-        while (parts.next()) |part| {
-            if (prev_len >= prev.len) return error.TooManyFields;
-            const val = std.fmt.parseInt(u64, part, 10) catch
-                return error.ParseError;
-            prev[prev_len] = val;
-            prev_len += 1;
-        }
+    if (total_delta == 0) return 0.0;
 
-        if (prev_len < 4) {
-            return error.InvalidProcStatFormat;
-        }
+    const load_percent = if (total_delta > 0) blk: {
+      const busy_delta = total_delta - idle_delta;
+      const busy_clamped = @max(busy_delta, 0);
+      break :blk (@as(f64, @floatFromInt(busy_clamped)) / @as(f64, @floatFromInt(total_delta))) * 100.0;
+    } else 0.0;
 
-        var prev_total: u64 = 0;
-        for (prev[0..prev_len]) |val| {
-            prev_total += val;
-        }
+    return load_percent;
+  }
 
-        const prev_idle = prev[3] + if (prev_len > 4) prev[4] else 0;
+  pub fn readCpuPowerDraw(self: *@This()) !f32 {
+    if (self.cpu_power_draw) |*cpu_power_draw| {
+      const start = try std.fmt.parseInt(u64, try cpu_power_draw.readValue(), 10);
+      const start_time = std.time.milliTimestamp();
 
-        std.Thread.sleep(200 * std.time.ns_per_ms);
+      std.Thread.sleep(500 * std.time.ns_per_ms);
 
-        const proc_stat2 = try self.cpu_load.readValue();
-        var line_iter2 = mem.splitScalar(u8, proc_stat2, '\n');
-        const line2 = line_iter2.next() orelse
-            return error.EmptyProcStat;
+      const end = try std.fmt.parseInt(u64, try cpu_power_draw.readValue(), 10);
+      const end_time = std.time.milliTimestamp();
 
-        var parts2 = mem.tokenizeAny(u8, line2, " \t");
-        _ = parts2.next(); // skip first field
+      // wrapped around or invalid read
+      if (end < start) return 0.0;
 
-        var now: [10]u64 = undefined;
-        var now_len: usize = 0;
-        while (parts2.next()) |part| {
-            if (now_len >= now.len) return error.TooManyFields;
-            const val = std.fmt.parseInt(u64, part, 10) catch
-                return error.ParseError;
-            now[now_len] = val;
-            now_len += 1;
-        }
+      const energy_delta_uj = end - start;
+      const time_delta_ms = @as(f32, @floatFromInt(end_time - start_time));
 
-        if (now_len < 4) {
-            return error.InvalidProcStatFormat;
-        }
+      // convert: (microjoules / milliseconds) * 1000 = milliwatts, then / 1000 = watts
+      //  -> microjoules / milliseconds / 1000
+      const watts = (@as(f32, @floatFromInt(energy_delta_uj)) / time_delta_ms) / 1000.0;
 
-        var now_total: u64 = 0;
-        for (now[0..now_len]) |val| {
-            now_total += val;
-        }
-
-        const now_idle = now[3] + if (now_len > 4) now[4] else 0;
-
-        const total_delta = @max(@as(i64, @intCast(now_total)) - @as(i64, @intCast(prev_total)), 1);
-        const idle_delta = @as(i64, @intCast(now_idle)) - @as(i64, @intCast(prev_idle));
-
-        if (total_delta == 0) return 0.0;
-
-        const load_percent = if (total_delta > 0) blk: {
-            const busy_delta = total_delta - idle_delta;
-            const busy_clamped = @max(busy_delta, 0);
-            break :blk (@as(f64, @floatFromInt(busy_clamped)) / @as(f64, @floatFromInt(total_delta))) * 100.0;
-        } else 0.0;
-
-        return load_percent;
+      return watts;
     }
-
-    pub fn readCpuPowerDraw(self: *@This()) !f32 {
-        if (self.cpu_power_draw) |*cpu_power_draw| {
-            const start = try std.fmt.parseInt(u64, try cpu_power_draw.readValue(), 10);
-            const start_time = std.time.milliTimestamp();
-
-            std.Thread.sleep(500 * std.time.ns_per_ms);
-
-            const end = try std.fmt.parseInt(u64, try cpu_power_draw.readValue(), 10);
-            const end_time = std.time.milliTimestamp();
-
-            // wrapped around or invalid read
-            if (end < start) return 0.0;
-
-            const energy_delta_uj = end - start;
-            const time_delta_ms = @as(f32, @floatFromInt(end_time - start_time));
-
-            // convert: (microjoules / milliseconds) * 1000 = milliwatts, then / 1000 = watts
-            //  -> microjoules / milliseconds / 1000
-            const watts = (@as(f32, @floatFromInt(energy_delta_uj)) / time_delta_ms) / 1000.0;
-
-            return watts;
-        }
-        return 0.0;
-    }
+    return 0.0;
+  }
 };

@@ -26,6 +26,8 @@ Powereg will need to be run with sudo
 
 ## Todo
 ----
+- [ ] for `sudo powereg --monitor`, turbo is defaulted to false and only reads the true value after first update (bug)
+  - same for min/max cpu freq reads
 - [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
 - [ ] intel_pstate support
 - [ ] make high/low cpu load and temp configurable in config
