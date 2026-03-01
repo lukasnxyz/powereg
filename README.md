@@ -26,8 +26,10 @@ powereg will need to be run with sudo
 - Inspired by auto-cpufreq (https://github.com/AdnanHodzic/auto-cpufreq).
 
 ## Todo
+- [ ] how much power is being drawn from the whole system regardless if charging or not
 - [ ] for `sudo powereg --monitor`, turbo is defaulted to false and only reads the true value after first update (bug)
   - same for min/max cpu freq reads
+- [ ] make sure requirement for udev installation is satisfied
 - [ ] auto start/stop bluetooth ('bluetoothctl power off/on')
 - [ ] install script check for cargo, libudev, and systemd
 - [ ] intel_pstate support
